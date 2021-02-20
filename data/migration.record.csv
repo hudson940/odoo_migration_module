@@ -1,0 +1,2 @@
+id,name,migration_model:id,model,old_id,new_id
+migration_record_1,,migration_model_stock.locationCPGeneral Procurement,stock.location,,

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="view_migration_model_tree" model="ir.ui.view">
+            <field name="name">migration.model.tree</field>
+            <field name="model">migration.model</field>
+            <field name="type">tree</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="sequence"/>
+                    <field name="name" />
+                    <field name="model" />
+                    <field name="state" />
+                    <field name="company_id"/>
+                    <field name="total_records"/>
+                    <field name="fetch_records"/>
+                    <field name="fetch_progress"/>
+                    <field name="migrated_records"/>
+                    <field name="migration_progress"/>
+                </tree>
+            </field>
+        </record>
+        <record id="view_migration_model_form" model="ir.ui.view">
+            <field name="name">migration.model.form</field>
+            <field name="model">migration.model</field>
+            <field name="type">form</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="compute_fields_mapping" type="object" string="Compute Fields and Deps" class="btn-primary" states="draft"/>
+                        <button name="map_records" type="object" string="Map Records"/>
+                        <button name="run_test" type="object" string="Test Migration" class="btn-primary" states="to_fetch"/>
+                        <button name="button_start" type="object" string="Start Migration" class="btn-primary" states="to_fetch"/>
+                        <button name="run_import_process" type="object" string="Run Import" class="btn-primary" states="ready"/>
+                        <button name="set_draft" type="object" string="Set draft" class="btn-primary" />
+                        <field name="state" widget="statusbar"/>
+                    </header>
+
+                    <group>
+                        <field name="name"/>
+                        <field name="sequence" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="credentials_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="model" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="company_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="old_company_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="date_from" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="date_to" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="record_states" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="fields_mapping"  widget="ace" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        
+                        <field name="threads" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="extra_domain" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="total_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="fetch_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>    
+                        
+                        <field name="fetch_progress" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="migrated_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="migration_progress" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="status_message" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="omit_fields"/>
+                        <field name="max_deep_level" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="current_deep_level" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="parent_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="relation_field" attrs="{'invisible':[('parent_id','=',False)],'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="dependency_ids" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+
+                        <field name="migration_record_ids"/>
+                     </group>
+                </form>
+            </field>
+        </record>
+
+        <record id="view_migration_record_tree" model="ir.ui.view">
+            <field name="name">migration.record.tree</field>
+            <field name="model">migration.record</field>
+            <field name="type">tree</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="name" />
+                    <field name="state" />
+                    <field name="migration_model"/>
+                    <field name="company_id"/>
+                    <field name="model" />
+                    <field name="old_id"/>
+                    <field name="new_id"/>
+                    <field name="state_message"/>
+                    <field name="type"/>
+                </tree>
+            </field>
+        </record>
+
+        <record model="ir.actions.act_window" id="action_migration_menu">
+            <field name="name">Migrations</field>
+            <field name="res_model">migration.model</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+        <record model="ir.actions.act_window" id="action_migration_record_menu">
+            <field name="name">Migrations Records</field>
+            <field name="res_model">migration.record</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+        <menuitem id="menu_migration" name="Migration Module" parent="base.menu_custom" action="action_migration_menu"/>
+        <menuitem id="menu_migration_record" name="Migration Record" parent="base.menu_custom" action="action_migration_record_menu"/>
+    </data>
+</odoo>
