@@ -1,0 +1,4 @@
+"id","name","model_id:id","group_id:id","perm_read","perm_write","perm_create","perm_unlink"
+"access_migration_model","migration_model manager","model_migration_model","base.group_system",1,1,1,1
+"access_migration_record","migration_record manager","model_migration_record","base.group_system",1,1,1,1
+"access_migration_credentials","migration_credentials manager","model_migration_credentials","base.group_system",1,1,1,1
