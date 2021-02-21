@@ -14,8 +14,11 @@ def get_chunks(iterable, n=1000):
 #  To create new user please go to configuration panel.'
 
 BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 'res.users', 'stock.location', 'res.',
-                     'product.pricelist', 'product.product', 'product.template', 'stock.picking.type','uom.']
-MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance']
+                     'product.pricelist', 'product.product', 'product.template', 'stock.picking.type','uom.','crm.team']
+# todo: add bool field on migration.model like use_same_id
+MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
+WITH_AUTO_PROCESS = ['sale.order', 'purchase.order']
+
 
 class MigrationRecord(models.Model):
     _name = 'migration.record'
@@ -32,7 +35,9 @@ class MigrationRecord(models.Model):
     relation = fields.Char()
 
 
-    def map_records(self):
+    def map_record(self):
+        if self.new_id:
+            return self.new_id
         model = self.migration_model.model or self.model
         company_id = self.company_id.id
         if not model:
@@ -46,7 +51,7 @@ class MigrationRecord(models.Model):
         res_model = self.env[model]
         has_name = hasattr(res_model, 'name')
         has_complete_name = hasattr(res_model, 'complete_name')
-        if (has_name or has_complete_name) and name:
+        if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
             domain = [('complete_name' if has_complete_name else 'name', '=', name)]
             has_company = hasattr(res_model, 'company_id')
             if has_company and company_id:
@@ -57,33 +62,37 @@ class MigrationRecord(models.Model):
                 self.write({'new_id': new_rec, 'model': model, 'state': 'done',})
                 return new_rec
 
-
     def get_new_id(self, model, old_id, test=False, company_id=0, create=True):
         domain = [('model', '=', model), ('old_id', '=', old_id)]
+        company_id = company_id or self.company_id.id
         if company_id:
-            domain.append(('company_id', '=', company_id))
+            domain += ['|', ('company_id', '=', company_id), ('company_id', '=', False)]
         rec = self.search(domain, limit=1)
         if rec.new_id:
             return rec.new_id
         if rec.data and create:
             data = json.loads(rec.data)
-            if rec.company_id and data.get('company_id'):
-                data['company_id'] = rec.company_id.id
-            return rec.get_or_create_new_id(data, field_type=rec.type, relation=model, test=test)
+            if company_id and data.get('company_id'):
+                data['company_id'] = rec.company_id
+            return rec.get_or_create_new_id(data, field_type=rec.type, relation=model, test=test, company_id=company_id)
         return 0
 
-    def prepare_vals(self, data={}, fields_mapping={}, model='', test=False):
+    def prepare_vals(self, data={}, fields_mapping={}, model='', test=False, company_id=0):
         if not data and self.data:
             data = json.loads(self.data)
         if not fields_mapping and model:
             fields_mapping = self.env[model].fields_get()
         vals = {}
+        in_status = self.migration_model.import_in_state
+        company_id = company_id or self.company_id.id or self.migration_model.company_id.id
         for key in data:
             if key in ('id', 'display_name'):
                 continue
-            company_id = self.company_id or self.migration_model.company_id
             if key == 'company_id' and company_id:
-                vals[key] = company_id.id
+                vals[key] = company_id
+                continue
+            if in_status and key == 'state':
+                vals[key] = in_status
                 continue
             value = data[key]
             if isinstance(value, (list, tuple)):
@@ -92,7 +101,7 @@ class MigrationRecord(models.Model):
                 if field_type == 'many2one':
                     # value is a tuple with (id, name)
                     try:
-                        new_id = self.browse().get_or_create_new_id(value, field_map=field_map, test=test)
+                        new_id = self.browse().get_or_create_new_id(value, field_map=field_map, test=test, company_id=company_id)
                         if new_id:
                             vals[key] = new_id
                     except Exception as e:
@@ -166,13 +175,16 @@ class MigrationRecord(models.Model):
                 return id
         elif self.exists() and isinstance(value, dict):
             raw_vals = value
-        if (has_name or has_complete_name) and name:
+        if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
             domain = [('complete_name' if has_complete_name else 'name', '=', name)]
             has_company = hasattr(res_model, 'company_id')
+            rec_no_company = False  # some records are shared between companies
             if has_company and company_id:
+                rec_no_company = res_model.search(domain + [('company_id', '=', False)], limit=1).id
                 domain.append(('company_id', '=', company_id))
-
             new_rec = res_model.search(domain, limit=1).id
+            if not new_rec and rec_no_company:
+                new_rec = rec_no_company
         if not new_rec and flag_try_old_id:
             new_rec = res_model.browse(old_id).exists().id
         if not new_rec:
@@ -181,8 +193,15 @@ class MigrationRecord(models.Model):
                 _log.warning('try to create a base model record %s for %s' % (relation, [old_id, name]))
                 return 0
             if raw_vals:
-                vals = self.prepare_vals(raw_vals, model=relation)
-                new_rec = res_model.create(vals).id
+                vals = self.prepare_vals(raw_vals, model=relation, company_id=company_id)
+                try:
+                    new_rec = res_model.create(vals).id
+                except Exception as e:
+                    if test:
+                        self.env.cr.rollback()
+                    else:
+                        self.env.cr.commit()
+                    _log.exception(e)
             elif old_id:
                 # fetch data from old server
                 try:
@@ -198,7 +217,7 @@ class MigrationRecord(models.Model):
                         old_model = migration_model.conn().env[relation]
                         data = old_model.search_read([('id', '=', old_id)], fields_to_read)
                         if data:
-                            vals = self.prepare_vals(data[0], model=relation)
+                            vals = self.prepare_vals(data[0], model=relation, company_id=company_id)
                             new_rec = res_model.create(vals).id
                     elif name:
                         new_rec = res_model.create({'name': name}).id
@@ -263,6 +282,9 @@ class MigrationModel(models.Model):
     threads = fields.Integer(help='for parallel workers, if it\'s 0 will execute synchronous')
     migration_record_ids = fields.One2many('migration.record', 'migration_model')
     status_message = fields.Text(stored=True)
+    import_in_state = fields.Char()
+    read_one2many_fields = fields.Boolean()
+    match_records_by_name = fields.Boolean(help="If true will match records by name or complete name", default=True)
     total_records = fields.Integer()
     extra_domain = fields.Char(help='domain extra in json format [["field", "operator", "value"]]', default='[["active","=",true]]')
 
@@ -278,6 +300,7 @@ class MigrationModel(models.Model):
     fetch_progress = fields.Integer(compute='_compute_progress')
     migrated_records = fields.Integer(compute='_compute_progress')
     migration_progress = fields.Integer(compute='_compute_progress')
+    has_auto_process = fields.Boolean(compute='_compute_progress')
 
     def compute_fields_mapping(self, dependencies=[]):
         for rec in self:
@@ -286,9 +309,13 @@ class MigrationModel(models.Model):
                 if self.omit_fields:
                     omit_fields = self.omit_fields.split(',')
                 conn = self.conn()
-                res_model = self.env[rec.model]
-                if res_model._transient:
-                    return
+                try:
+                    res_model = self.env[rec.model]
+                    if res_model._transient:
+                        return
+                except KeyError:
+                    res_model = conn.env[rec.model]
+
                 model_fields = res_model.fields_get()
                 stored_fields = [f for f in model_fields if model_fields[f].get('store', True)]
                 old_res_model = conn.env[rec.model]
@@ -301,7 +328,7 @@ class MigrationModel(models.Model):
                     if field in omit_fields:
                         continue
                     new_field = model_fields[field]
-                    if new_field.get('type') == 'one2many':
+                    if new_field.get('type') == 'one2many' and not rec.read_one2many_fields:
                         continue
                     old_field = old_model_fields.get(field)
                     if old_field:
@@ -354,6 +381,7 @@ class MigrationModel(models.Model):
 
     def _compute_progress(self):
         for rec in self:
+            rec.has_auto_process = rec.model in WITH_AUTO_PROCESS
             rec.fetch_records = len(rec.migration_record_ids)
             rec.fetch_progress = rec.total_records and (rec.fetch_records / rec.total_records) * 100
             rec.migrated_records = self.migration_record_ids.search_count([('migration_model', '=', rec.id), ('state', '=', 'done')])
@@ -368,6 +396,10 @@ class MigrationModel(models.Model):
         for rec in self:
             rec.state = 'draft'
 
+    def set_ready(self):
+        for rec in self:
+            rec.state = 'ready'
+
     def run_test(self, show_confirmation=True):
         try:
             self.prepare_records_from_old_server(test=True)
@@ -376,6 +408,9 @@ class MigrationModel(models.Model):
             raise ValidationError('Test Failed\n %s'% repr(e))
         if show_confirmation:
             raise ValidationError('Test Success')
+
+    def button_fetch(self):
+        self.prepare_records_from_old_server(run_import=False)
 
     def button_start(self):
         if self.threads:
@@ -395,7 +430,8 @@ class MigrationModel(models.Model):
             self.run_import_batch(self.migration_record_ids, test=test)
         if self.threads > 0:
             self.state = 'importing'
-            chunks = get_chunks(self.migration_record_ids, self.threads)
+            n_batch = self.total_records / self.threads
+            chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_import_batch(batch)
 
@@ -407,29 +443,170 @@ class MigrationModel(models.Model):
 
     @job
     def run_import_batch(self, migration_record_ids, test=False):
-        fields_mapping = json.loads(self.fields_mapping)
-        for rec in migration_record_ids.filtered(lambda r: not r.new_id):
-            try:
-                new_obj = rec.get_or_create_new_id(test=test)
-            except Exception as e:
-                if test:
-                    self.env.cr.rollback()
-                else:
-                    self.env.cr.commit()  # to avoid InFailedSqlTransaction transaction block
-                rec.state = 'error'
-                rec.state_message = repr(e)
-        if test:
-            self.env.cr.rollback()
-        else:
-            self.env.cr.commit()  # to avoid InFailedSqlTransaction transaction block
+        sql_errors = 0
+        records = migration_record_ids.filtered(lambda r: not r.new_id)
+        chunks = get_chunks(records, 100)
+        for chunk in chunks:
+            for rec in chunk:
+                try:
+                    rec.map_record()
+                    if rec.new_id:
+                        continue
+                    new_obj = rec.get_or_create_new_id(test=test)
+                except Exception as e:
+                    _log.exception(e)
+                    if test:
+                        self.env.cr.rollback()
+                    else:
+                        try:
+                            self.env.cr.commit() # to avoid InFailedSqlTransaction transaction block
+                        except Exception as e2:
+                            _log.exception(e2)
+                            if sql_errors > 200:
+                                raise e2
+                            sql_errors += 1
+                            self.env.cr.rollback()
+                    rec.state = 'error'
+                    rec.state_message = repr(e)
+            if test:
+                self.env.cr.rollback()
+            else:
+                self.env.cr.commit()
 
     def map_records(self):
         if not self.migration_record_ids:
             self.prepare_records_from_old_server(run_import=False)
         for batch in get_chunks(self.migration_record_ids):
             for rec in batch:
-                rec.map_records()
+                rec.map_record()
             self.env.cr.commit()
+
+    def auto_process(self):
+        if self.model not in WITH_AUTO_PROCESS:
+            raise ValidationError('Method Only available for model sale.order')
+        if self.threads:
+            n_batch = self.total_records / self.threads
+            chunks = get_chunks(self.migration_record_ids, n_batch)
+            for batch in chunks:
+                self.with_delay().run_auto_process(batch)
+        else:
+            self.run_auto_process()
+
+
+    @job
+    def run_auto_process(self, migration_record_ids):
+        self.env.user.company_ids = self.env.user.company_id.search([])
+        has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
+        sale_obj = self.env[self.model]
+        picking_fields = ['origin', 'note', 'state', 'date_done', 'carrier_id','carrier_tracking_ref',]
+        if has_sp_op_migration:
+            picking_fields.append('pack_operation_ids')
+        conn = self.conn()
+        for rec in migration_record_ids:
+            try:
+                if not rec.new_id:
+                    _log.warning('omit order because no new id')
+                    continue
+                so = sale_obj.browse(rec.new_id)
+                if so.state != 'draft':
+                    _log.warning('order %s is not in draft' % rec.name)
+                    continue
+                old_data = json.loads(rec.data)
+                if round(so.amount_total) != round(old_data.get('amount_total')):
+                    rec.write({'state': 'error', 'state_message': 'Amount total discrepancy'})
+                    continue
+
+                old_state = old_data.get('state')
+                if old_state != 'sale':
+                    _log.warning('order was in state %s' % old_state)
+                    continue
+                # Validate the order
+                so.action_confirm()
+
+                # get old delivery data
+                old_sp_ids = old_data.get('picking_ids')
+                if not old_sp_ids:
+                    rec.write({'state': 'error', 'state_message': 'order without picking_ids'})
+                    continue
+                sp_rec = rec.search([('model', '=', 'stock.picking'), ('old_id', 'in', old_sp_ids)])
+                sp_data = [json.loads(r.data) for r in sp_rec if r.data]
+                if not sp_rec:
+                    # get from old server
+                    sp_data = conn.env['stock.picking'].search_read([('id', 'in', old_sp_ids)], picking_fields)
+                if not sp_data:
+                    rec.write({'state': 'error', 'state_message': 'no stock picking data found'})
+                    continue
+                validated_pickings = [p for p in sp_data if p.get('state') == 'done']
+                if not validated_pickings:
+                    rec.write({'state': 'pending', 'state_message': 'no validated picking found'})
+                    continue
+                sp_lines = []
+                if has_sp_op_migration:
+                    # for V10
+                    # todo add support for stock.move V13
+                    op_lines = sp_data.get('pack_operation_ids')
+                    if op_lines:
+                        sp_lines = rec.search([('model', '=', 'stock.pack.operation'), ('old_id', 'in', op_lines)])
+                        if sp_lines:
+                            sp_lines = [json.loads(r.data) for r in sp_lines if r.data]
+                        else:
+                            # get from connection
+                            sp_lines = conn.env['stock.pack.operation'].search_read(
+                                [('id', 'in', op_lines)], ['product_qty', 'location_id', 'state', 'qty_done', 'product_id', 'location_dest_id'])
+
+                if not sp_lines:
+                    rec.write({'state_message': 'no picking lines found'})
+                    continue
+                sp = so.picking_ids
+                # set unique operation lines
+                unique_line_ids = []
+                unique_lines = []
+                for l in sp_lines:
+                    if l.get('id') not in unique_line_ids:
+                        unique_line_ids.append(l.get('id'))
+                        old_product_id = l.get('product_id')
+                        product_id = rec.get_new_id(model='product.product', old_id=old_product_id)
+                        location_id = rec.get_new_id(model='stock.location', old_id=l.get('location_id'), company_id=rec.company_id)
+                        qty = l.get('qty_done')
+                        if not (product_id and location_id and qty):
+                            raise ValidationError('missing product, qty, location')
+                        unique_lines.append((0, 0, {
+                            'product_id': product_id,
+                            'qty_done': qty,
+                            'location_id': location_id
+                        }))
+
+                # set moves
+                sp.move_line_ids_without_package = unique_lines
+                # validate delivery
+                sp.action_done()
+
+                # create and validate invoice
+                if old_data.get('invoice_status') == 'invoiced':
+                    invoices = so._create_invoices()
+                    if so.company_id.l10n_mx_edi_certificate_ids:
+                        # avoid to generate fe invoice
+                        invoices.write({'l10n_mx_edi_origin': 0})
+                    invoices.post()
+                #commit changes
+                self.env.cr.commit()
+
+            except Exception as e:
+                self.env.cr.rollback()
+                rec.write({'state': 'error', 'state_message': repr(e)})
+                # sql_errors = 0
+                # try:
+                #     self.env.cr.commit()
+                # except Exception as e2:
+                #     if sql_errors < 200:
+                #         sql_errors += 1
+                #         _log.exception(e2)
+                #         self.env.cr.rollback()
+                #     else:
+                #         raise e2
+                _log.error(e)
+
+
 
 
     @job
@@ -439,11 +616,19 @@ class MigrationModel(models.Model):
                 # raise ValidationError('Migration state must be in To fetch')
                 return
             self.state = 'fetching'
+            if self.migration_record_ids:
+                self.state = 'ready'
+                if run_import:
+                    self.run_import_process(test=test)
+                    return
             if not test:
                 self.env.cr.commit()
             limit = 100 if test else None
             conn = self.conn()
-            new_model = self.env[self.model]
+            try:
+                new_model = self.env[self.model]
+            except KeyError:
+                new_model = conn.env[self.model]
             old_model = conn.env[self.model]
             domain = []
             if self.old_company_id and hasattr(new_model, 'company_id'):

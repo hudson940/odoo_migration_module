@@ -1,2 +1,22 @@
-id,name,migration_model:id,model,old_id,new_id
-migration_record_1,,migration_model_stock.locationCPGeneral Procurement,stock.location,,
+id,name,migration_model:id,model,old_id,new_id,state
+migration_record_1,PacRtl,migration_model_stock.warehousePACTECH RETAIL S DE RL DE CV,stock.warehouse,31,99,Done
+migration_record_2,PacRtl: Receipts,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,184,642,Done
+migration_record_3,PacRtl: Internal Transfers,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,188,646,Done
+migration_record_4,PacRtl: Delivery Orders,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,187,643,Done
+migration_record_5,PacRtl: Manufacturing,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,189,649,Done
+migration_record_6,PacRtl: Customer Refunds,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,198,0,Pending
+migration_record_7,DTDC/PTR,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4668,6885,Done
+migration_record_8,DTDC/PTR/DamagBox,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4783,6886,Done
+migration_record_9,PacRt,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4415,5509,Done
+migration_record_10,PacRt/DamagBox,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4780,6887,Done
+migration_record_11,PacRt/SLOW,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4918,6888,Done
+migration_record_12,PacRt/Stock,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4419,5510,Done
+migration_record_13,PacRtl,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4412,5509,Done
+migration_record_14,PacRtl/RMA,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4454,6889,Done
+migration_record_15,PacRtl/RMA/Pagos,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,5128,6890,Done
+migration_record_16,PacRtl/RFB,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4770,6891,Done
+migration_record_17,IVA 16% Ventas,migration_model_account.taxPACTECH RETAIL S DE RL DE CV,account.tax,7,28,Done
+migration_record_18,IVA 16% Compras,migration_model_account.taxPACTECH RETAIL S DE RL DE CV,account.tax,10,36,Done
+migration_record_19,IVA 8% Compras,migration_model_account.taxPACTECH RETAIL S DE RL DE CV,account.tax,26,37,Done
+migration_record_20,TRS/MAIN,migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,stock.location,4365,,pending
+migration_record_21,TRANSITO: Internal Transfers,migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,stock.picking.type,156,,pending
