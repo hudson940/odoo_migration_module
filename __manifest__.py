@@ -14,7 +14,7 @@
     'data': [
         'data/migration.credentials.csv',
         'data/migration.model.csv',
-        #  'data/migration.record.csv',
+        'data/migration.record.csv',
         'security/ir.model.access.csv',
         'views/migration_views.xml',
     ],

@@ -1,50 +1,60 @@
-id,sequence,name,model,company_id,old_company_id,extra_domain,max_deep_level,current_deep_level,credentials_id:id,omit_fields,date_from,date_to
-migration_model_manufacturer.master,10,manufacturer.master,manufacturer.master,,,[],1,1,migration.credentials_1,,,
-migration_model_etilize_category_master,20,etilize.category.master,etilize.category.master,,,[],1,1,migration.credentials_1,,,
-migration_model_etilize.attribute.master,30,etilize.attribute.master,etilize.attribute.master,,,[],1,1,migration.credentials_1,,,
-migration_model_etilize.attribute.matching,40,etilize.attribute.value.master,etilize.attribute.value.master,,,[],1,1,migration.credentials_1,,,
-migration_model_etilize.attribute.matching,50,etilize.attribute.matching,etilize.attribute.matching,,,[],1,1,migration.credentials_1,,,
-migration_model_etilize.attribute.value.product.rel,60,etilize.attribute.value.product.rel,etilize.attribute.value.product.rel,,,[],1,1,migration.credentials_1,,,
-migration_model_product.category,70,product.category,product.category,,,[],1,1,migration.credentials_1,,,
-migration_model_product.product,80,product.product,product.product,,,[],1,1,migration.credentials_1,,,
-migration_model_product.template,90,product.template,product.template,,,[],1,1,migration.credentials_1,,,
-migration_model_product.supplierinfo,100,product.supplierinfo,product.supplierinfo,,,[],1,1,migration.credentials_1,,,
-migration_model_res.users,110,res.users,res.users,,,[],1,1,migration.credentials_1,,,
-migration_model_crm.team,120,crm.team,crm.team,,,[],1,1,migration.credentials_1,,,
-migration_model_res.partner,130,res.partner,res.partner,,,[],1,1,migration.credentials_1,,,
-migration_model_res.company,150,res.company,res.company,,,[],1,1,migration.credentials_1,,,
-migration_model_procurement.group,160,procurement.group,procurement.group,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_seller.instanceCP,160,seller.instance,seller.instance,,,[],1,1,migration.credentials_1,,,
-migration_model_stock.warehouseCPGeneral Procurement,149,stock.warehouse,stock.warehouse,General Procurement,1,[],1,1,migration.credentials_1,,,
-migration_model_delivery.carrierCP,170,delivery.carrier,delivery.carrier,,,,1,1,migration.credentials_1,invoice_policy,,
-migration_model_account.taxCPGeneral Procurement,180,account.tax,account.tax,General Procurement,1,,1,1,migration.credentials_1,,,
-migration_model_mrp.bomCPGeneral Procurement,190,mrp.bom,mrp.bom,General Procurement,1,,1,1,migration.credentials_1,,,
-migration_model_mrp.bomCPPACTECH RETAIL S DE RL DE CV,200,mrp.bom,mrp.bom,PACTECH RETAIL S DE RL DE CV,6,,1,1,migration.credentials_1,,,
-migration_model_mrp.bomCPSAMARA ONLINE SA DE CV,210,mrp.bom,mrp.bom,SAMARA ONLINE SA DE CV,6,,1,1,migration.credentials_1,,,
-migration_model_mrp.bomCPPACTECH MAYOREO S DE RL DE CV,200,mrp.bom,mrp.bom,PACTECH MAYOREO S DE RL DE CV,6,,1,1,migration.credentials_1,,,
-"migration_model_mrp.bomCPHyundai Technology Group, Inc",210,mrp.bom,mrp.bom,"Hyundai Technology Group, Inc",14,,1,1,migration.credentials_1,,,
-migration_model_mrp.bom.lineCP,200,mrp.bom.line,mrp.bom.line,,,,1,1,migration.credentials_1,,,
-migration_model_stock.picking.typeCPGeneral Procurement,210,stock.picking.type,stock.picking.type,General Procurement,,"[[""warehouse_id.branch_id"",""="", false]]",1,1,migration.credentials_1,,,
-migration_model_stock.locationCPGeneral Procurement,210,stock.location,stock.location,General Procurement,1,[],1,1,migration.credentials_1,,,
-migration_model_mrp.productionGeneral Procurement,220,mrp.production,mrp.production,General Procurement,1,,1,1,,,2021-01-01,2021-02-21
-migration_model_sale.orderCPGeneral Procurement,220,sale.order,sale.order,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_sale.order.lineCPGeneral Procurement,230,sale.order.line,sale.order.line,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.pickingCPGeneral Procurement,230,stock.picking,stock.picking,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_purchase.orderCPGeneral Procurement,240,purchase.order,purchase.order,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_purchase.order.lineCPGeneral Procurement,240,purchase.order.line,purchase.order.line,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.moveCPGeneral Procurement,250,stock.move,stock.move,General Procurement,1,,1,1,migration.credentials_1,product_qty,2021-01-01,2021-02-21
-migration_model_stock.move.lineCPGeneral Procurement,250,stock.move.line,stock.move.line,General Procurement,1,,1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.picking.typeSAMARA ONLINE SA DE CV,260,stock.picking.type,stock.picking.type,SAMARA ONLINE SA DE CV,,"[[""warehouse_id.branch_id"",""="", 4]]",1,1,migration.credentials_1,,,
-migration_model_stock.picking.typePACTECH MAYOREO S DE RL DE CV,260,stock.picking.type,stock.picking.type,PACTECH MAYOREO S DE RL DE CV,,,1,1,migration.credentials_1,,,
-migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,270,stock.picking.type,stock.picking.type,PACTECH RETAIL S DE RL DE CV,,"[[""warehouse_id.branch_id"",""="", 3]]",1,1,migration.credentials_1,,,
-migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,270,stock.location,stock.location,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,,
-migration_model_mrp.productionPACTECH RETAIL S DE RL DE CV,280,mrp.production,mrp.production,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.warehousePACTECH RETAIL S DE RL DE CV,270,stock.warehouse,stock.warehouse,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,,
-migration_model_account.taxPACTECH RETAIL S DE RL DE CV,280,account.tax,account.tax,PACTECH RETAIL S DE RL DE CV,6,"[[""is_reserve"",""="",false]]",1,1,migration.credentials_1,,,
-migration_model_sale.orderPACTECH RETAIL S DE RL DE CV,290,sale.order,sale.order,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_sale.order.linePACTECH RETAIL S DE RL DE CV,300,sale.order.line,sale.order.line,PACTECH RETAIL S DE RL DE CV,6,"[[""order_id.branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.pickingPACTECH RETAIL S DE RL DE CV,310,stock.picking,stock.picking,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_purchase.orderPACTECH RETAIL S DE RL DE CV,320,purchase.order,purchase.order,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_purchase.order.linePACTECH RETAIL S DE RL DE CV,330,purchase.order.line,purchase.order.line,PACTECH RETAIL S DE RL DE CV,6,"[[""order_id.branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
-migration_model_stock.movePACTECH RETAIL S DE RL DE CV,340,stock.move,stock.move,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",1,1,migration.credentials_1,product_qty,2021-01-01,2021-02-21
-migration_model_stock.move.linePACTECH RETAIL S DE RL DE CV,350,stock.move.line,stock.move.line,PACTECH RETAIL S DE RL DE CV,6,"[[""move_id.branch_id"",""="", 3]]",1,1,migration.credentials_1,,2021-01-01,2021-02-21
+id,sequence,name,model,company_id,old_company_id,extra_domain,import_in_state,record_states,max_deep_level,current_deep_level,credentials_id:id,omit_fields,date_from,date_to,match_records_by_name
+migration_model_manufacturer.master,10,manufacturer.master,manufacturer.master,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_etilize_category_master,20,etilize.category.master,etilize.category.master,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_etilize.attribute.master,30,etilize.attribute.master,etilize.attribute.master,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_etilize.attribute.matching,40,etilize.attribute.value.master,etilize.attribute.value.master,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_etilize.attribute.matching,50,etilize.attribute.matching,etilize.attribute.matching,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_etilize.attribute.value.product.rel,60,etilize.attribute.value.product.rel,etilize.attribute.value.product.rel,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_product.category,70,product.category,product.category,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_product.product,80,product.product,product.product,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_product.template,90,product.template,product.template,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_product.supplierinfo,100,product.supplierinfo,product.supplierinfo,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_res.users,110,res.users,res.users,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_crm.teamGeneral Procurement,120,crm.team,crm.team,General Procurement,1,[],,,1,1,migration.credentials_1,,,,1
+migration_model_res.partner,130,res.partner,res.partner,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_res.company,140,res.company,res.company,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_procurement.group,150,procurement.group,procurement.group,,,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_seller.instanceCP,160,seller.instance,seller.instance,,,[],,,1,1,migration.credentials_1,,,,1
+migration_model_stock.warehouseCPGeneral Procurement,170,stock.warehouse,stock.warehouse,General Procurement,1,[],,,1,1,migration.credentials_1,,,,1
+migration_model_delivery.carrierCP,180,delivery.carrier,delivery.carrier,,,,,,1,1,migration.credentials_1,invoice_policy,,,1
+migration_model_account.taxCPGeneral Procurement,190,account.tax,account.tax,General Procurement,1,,,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.bomCPGeneral Procurement,200,mrp.bom,mrp.bom,General Procurement,1,,,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.bomCPPACTECH RETAIL S DE RL DE CV,210,mrp.bom,mrp.bom,PACTECH RETAIL S DE RL DE CV,6,,,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.bomCPSAMARA ONLINE SA DE CV,220,mrp.bom,mrp.bom,SAMARA ONLINE SA DE CV,6,,,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.bomCPPACTECH MAYOREO S DE RL DE CV,230,mrp.bom,mrp.bom,PACTECH MAYOREO S DE RL DE CV,6,,,,1,1,migration.credentials_1,,,,1
+"migration_model_mrp.bomCPHyundai Technology Group, Inc",240,mrp.bom,mrp.bom,"Hyundai Technology Group, Inc",14,,,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.bom.lineCP,250,mrp.bom.line,mrp.bom.line,,,,,,1,1,migration.credentials_1,,,,0
+migration_model_stock.picking.typeCPGeneral Procurement,260,stock.picking.type,stock.picking.type,General Procurement,,"[[""warehouse_id.branch_id"",""="", false]]",,,1,1,migration.credentials_1,,,,1
+migration_model_stock.locationCPGeneral Procurement,270,stock.location,stock.location,General Procurement,1,[],,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.productionGeneral Procurement,280,mrp.production,mrp.production,General Procurement,1,,,,1,1,,,2021-01-01,2021-02-21,1
+migration_model_sale.orderCPGeneral Procurement,290,sale.order,sale.order,General Procurement,1,,draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_sale.order.lineCPGeneral Procurement,300,sale.order.line,sale.order.line,General Procurement,1,,draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.pickingCPGeneral Procurement,310,stock.picking,stock.picking,General Procurement,1,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.orderCPGeneral Procurement,320,purchase.order,purchase.order,General Procurement,1,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.order.lineCPGeneral Procurement,330,purchase.order.line,purchase.order.line,General Procurement,1,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.moveCPGeneral Procurement,340,stock.move,stock.move,General Procurement,1,,,,1,1,migration.credentials_1,product_qty,2021-01-01,2021-02-21,1
+migration_model_stock.move.lineCPGeneral Procurement,350,stock.move.line,stock.move.line,General Procurement,1,,,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.picking.typeSAMARA ONLINE SA DE CV,360,stock.picking.type,stock.picking.type,SAMARA ONLINE SA DE CV,,"[[""warehouse_id.branch_id"",""="", 4]]",,,1,1,migration.credentials_1,,,,1
+migration_model_stock.picking.typePACTECH MAYOREO S DE RL DE CV,370,stock.picking.type,stock.picking.type,PACTECH MAYOREO S DE RL DE CV,,,,,1,1,migration.credentials_1,,,,1
+migration_model_crm.teamPACTECH RETAIL S DE RL DE CV,380,crm.team,crm.team,PACTECH RETAIL S DE RL DE CV,6,[],,,1,1,migration.credentials_1,,,,1
+migration_model_stock.picking.typePACTECH RETAIL S DE RL DE CV,380,stock.picking.type,stock.picking.type,PACTECH RETAIL S DE RL DE CV,,"[[""warehouse_id.branch_id"",""="", 3]]",,,1,1,migration.credentials_1,,,,1
+migration_model_stock.locationPACTECH RETAIL S DE RL DE CV,390,stock.location,stock.location,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.productionPACTECH RETAIL S DE RL DE CV,400,mrp.production,mrp.production,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_stock.warehousePACTECH RETAIL S DE RL DE CV,410,stock.warehouse,stock.warehouse,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",,,1,1,migration.credentials_1,,,,1
+migration_model_account.taxPACTECH RETAIL S DE RL DE CV,420,account.tax,account.tax,PACTECH RETAIL S DE RL DE CV,6,"[[""is_reserve"",""="",false]]",,,1,1,migration.credentials_1,,,,1
+migration_model_sale.orderPACTECH RETAIL S DE RL DE CV,430,sale.order,sale.order,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_sale.order.linePACTECH RETAIL S DE RL DE CV,440,sale.order.line,sale.order.line,PACTECH RETAIL S DE RL DE CV,6,"[[""order_id.branch_id"",""="", 3]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.pickingPACTECH RETAIL S DE RL DE CV,450,stock.picking,stock.picking,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.orderPACTECH RETAIL S DE RL DE CV,460,purchase.order,purchase.order,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.order.linePACTECH RETAIL S DE RL DE CV,470,purchase.order.line,purchase.order.line,PACTECH RETAIL S DE RL DE CV,6,"[[""order_id.branch_id"",""="", 3]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.movePACTECH RETAIL S DE RL DE CV,480,stock.move,stock.move,PACTECH RETAIL S DE RL DE CV,6,"[[""branch_id"",""="", 3]]",,,1,1,migration.credentials_1,product_qty,2021-01-01,2021-02-21,1
+migration_model_stock.locationSAMARA ONLINE SA DE CV,390,stock.location,stock.location,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",,,1,1,migration.credentials_1,,,,1
+migration_model_mrp.productionSAMARA ONLINE SA DE CV,400,mrp.production,mrp.production,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_stock.warehouseSAMARA ONLINE SA DE CV,410,stock.warehouse,stock.warehouse,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",,,1,1,migration.credentials_1,,,,1
+migration_model_account.taxSAMARA ONLINE SA DE CV,420,account.tax,account.tax,SAMARA ONLINE SA DE CV,6,"[[""is_reserve"",""="",false]]",,,1,1,migration.credentials_1,,,,1
+migration_model_sale.orderSAMARA ONLINE SA DE CV,430,sale.order,sale.order,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_sale.order.lineSAMARA ONLINE SA DE CV,440,sale.order.line,sale.order.line,SAMARA ONLINE SA DE CV,6,"[[""order_id.branch_id"",""="", 4]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.pickingSAMARA ONLINE SA DE CV,450,stock.picking,stock.picking,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",,,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.orderSAMARA ONLINE SA DE CV,460,purchase.order,purchase.order,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,1
+migration_model_purchase.order.lineSAMARA ONLINE SA DE CV,470,purchase.order.line,purchase.order.line,SAMARA ONLINE SA DE CV,6,"[[""order_id.branch_id"",""="", 4]]",draft,sale,1,1,migration.credentials_1,,2021-01-01,2021-02-21,0
+migration_model_stock.moveSAMARA ONLINE SA DE CV,480,stock.move,stock.move,SAMARA ONLINE SA DE CV,6,"[[""branch_id"",""="", 4]]",,,1,1,migration.credentials_1,product_qty,2021-01-01,2021-02-21,1
