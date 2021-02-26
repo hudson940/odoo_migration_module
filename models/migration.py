@@ -18,7 +18,7 @@ BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 're
                      'product.pricelist', 'product.product', 'stock.picking.type','uom.','crm.team', 'stock.warehouse', 'stock.picking']
 # todo: add bool field on migration.model like use_same_id
 MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
-WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs']
+WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice']
 
 
 class MigrationRecord(models.Model):
@@ -522,6 +522,134 @@ class MigrationModel(models.Model):
             self.run_process_orders(migration_record_ids)
         elif self.model == 'stock.picking':
             self.run_process_picking(migration_record_ids)
+        elif self.model == 'account.invoice':
+            self.run_process_account_invoice(migration_record_ids)
+
+    def run_process_account_invoice(self, migration_record_ids):
+        # journal
+        # account
+        # tax
+        account_move = self.env['account.move']
+
+        errors = []
+        for rec in migration_record_ids:
+            try:
+                old_data = json.loads(rec.data)
+                journal_id = old_data.get('journal_id')
+                journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[0],
+                                                                     company_id=self.company_id.id, create=False)
+
+                invoice_line_ids = list(invoice_line_ids)
+                inv_line_recs = rec.search([('model', '=', 'account.invoice.line'), ('old_id', 'in', invoice_line_ids)])
+                for r in inv_line_recs:
+                    if r.data:
+                        line_data = json.loads( r.data )
+
+                        account_id = line_data.get('account_id')
+                        tax_ids = list(line_data.get('tax_line_ids')) if line_data.get('tax_line_ids', False) else False
+
+                        if tax_ids:
+                            line_taxes_recs = rec.search([('model', '=', 'account.tax'), ('old_id', 'in', tax_ids)])
+                            for s in line_taxes_recs:
+                                if s.data:
+                                    tax_id = json.loads( s.data )
+                                    tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
+
+                        account_id = self.env['migration.record'].get_new_id('account.account', account_id[0], company_id=self.company_id.id,
+                                                     create=False)
+
+
+
+
+            except Exception as e:
+                self.env.cr.rollback()
+                rec.write({'state': 'error', 'state_message': repr(e)})
+                _log.error(e)
+
+        for rec in migration_record_ids:
+            try:
+                old_data = json.loads(rec.data)
+
+                partner_id = old_data.get('partner_id')
+                partner_shipping_id = old_data.get('partner_shipping_id')
+                payment_term_id = old_data.get('payment_term_id')
+                invoice_date = old_data.get('date_invoice')
+                user_id = old_data.get('user_id')
+                currency_id = old_data.get('currency_id')
+                team_id = old_data.get('team_id')
+                origin = old_data.get('origin')
+                type = old_data.get('type')
+                state = old_data.get('state')
+                invoice_line_ids = old_data.get('invoice_line_ids')
+                journal_id = old_data.get('journal_id')
+
+
+                if partner_id:
+                    create_invoice_line = []
+                    invoice_line_ids = list(invoice_line_ids)
+                    inv_line_recs = rec.search([('model', '=', 'account.invoice.line'), ('old_id', 'in', invoice_line_ids)])
+                    for r in inv_line_recs:
+                        if r.data:
+                            line_data = json.loads( r.data )
+                            product_id = line_data.get('product_id')
+                            price_unit = line_data.get('price_unit')
+                            quantity  = line_data.get('quantity')
+                            account_id = line_data.get('account_id')
+                            tax_ids = list(line_data.get('tax_line_ids')) if line_data.get('tax_line_ids', False) else False
+                            name = line_data.get('name')
+
+                            create_line_taxes = []
+                            if tax_ids:
+                                line_taxes_recs = rec.search([('model', '=', 'account.tax'), ('old_id', 'in', tax_ids)])
+                                for s in line_taxes_recs:
+                                    if s.data:
+                                        tax_id = json.loads( s.data )
+                                        tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
+                                        create_line_taxes.append( tax_id )
+
+                            account_id = self.env['migration.record'].get_new_id('account.account', account_id[0], company_id=self.company_id.id,
+                                                         create=False)
+
+                            if product_id:
+                                create_invoice_line.append((0, 0, {
+                                    'name': name,
+                                    'product_id': product_id[ 0 ] if product_id else False,
+                                    'price_unit': price_unit,
+                                    'quantity': quantity,
+                                    'account_id': account_id,
+                                    'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
+                                }))
+                            else:
+                                raise ValidationError('The product is required %s' % (product_id[0]))
+
+                    journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
+
+                    if not journal_id:
+                        raise ValidationError('The journal is requiere to create the invoice old id %s please map it' % ( journal_id[ 0 ] ))
+
+                    account_move_id = account_move.create({
+                        'partner_id' : partner_id[ 0 ] if partner_id else False,
+                        'partner_shipping_id' : partner_shipping_id[ 0 ] if partner_shipping_id else False,
+                        'invoice_payment_term_id' : payment_term_id[ 0 ] if payment_term_id else False,
+                        'invoice_date' : invoice_date,
+                        'user_id' : user_id[ 0 ] if user_id else False,
+                        'currency_id' : self.env['res.currency'].search([('name', '=', currency_id[ 1 ])]).id,
+                        'team_id' : team_id[ 0 ] if team_id else False,
+                        'ref' : origin,
+                        'type' : type,
+                        'invoice_line_ids' : invoice_line_ids,
+                        'journal_id' : journal_id
+                    })
+                    if state == 'open':
+                        account_move_id.post()
+
+                    self.env.cr.commit()
+
+            except Exception as e:
+                self.env.cr.rollback()
+                rec.write({'state': 'error', 'state_message': repr(e)})
+                _log.error(e)
+
 
     def run_process_orders(self, migration_record_ids):
         has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
