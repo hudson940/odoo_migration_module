@@ -34,8 +34,8 @@
                         <button name="button_start" type="object" string="Start Migration" class="btn-primary" states="to_fetch"/>
                         <button name="run_import_process" type="object" string="Run Import" class="btn-primary" states="ready"/>
                         <button name="set_draft" type="object" string="Set draft" class="btn-primary" />
-                        <button name="set_ready" type="object" string="Set Ready" class="btn-primary" states="error,done"/>
-                        <button name="auto_process" type="object" string="Run Auto Process" states="done,importing" attrs="{'invisible':[('has_auto_process','=', False)]}"/>
+                        <button name="set_ready" type="object" string="Set Ready" class="btn-primary" states="error,done,to_fetch"/>
+                        <button name="auto_process" type="object" string="Run Auto Process" states="draft,done,importing" attrs="{'invisible':[('has_auto_process','=', False)]}"/>
                         <field name="state" widget="statusbar"/>
                     </header>
 
@@ -46,6 +46,8 @@
                         <field name="model" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="company_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="old_company_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="only_fetch_data" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+
                         <field name="date_from" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="date_to" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="record_states" attrs="{'readonly': [('state','!=', 'draft')]}"/>
@@ -69,6 +71,7 @@
                         <field name="current_deep_level" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="parent_id" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="relation_field" attrs="{'invisible':[('parent_id','=',False)],'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="account_id"/>
                         <field name="fields_mapping"  widget="ace" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="dependency_ids" attrs="{'readonly': [('state','!=', 'draft')]}"/>
 

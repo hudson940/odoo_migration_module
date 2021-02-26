@@ -4,6 +4,7 @@ import odoorpc
 import logging
 import json
 from odoo.exceptions import ValidationError
+from odoo.tests import Form
 _log = logging.getLogger(__name__)
 
 def get_chunks(iterable, n=1000):
@@ -14,10 +15,10 @@ def get_chunks(iterable, n=1000):
 #  To create new user please go to configuration panel.'
 
 BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 'res.users', 'stock.location', 'res.',
-                     'product.pricelist', 'product.product', 'product.template', 'stock.picking.type','uom.','crm.team']
+                     'product.pricelist', 'product.product', 'stock.picking.type','uom.','crm.team', 'stock.warehouse', 'stock.picking']
 # todo: add bool field on migration.model like use_same_id
 MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
-WITH_AUTO_PROCESS = ['sale.order', 'purchase.order']
+WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs']
 
 
 class MigrationRecord(models.Model):
@@ -67,9 +68,12 @@ class MigrationRecord(models.Model):
         company_id = company_id or self.company_id.id
         if company_id:
             domain += ['|', ('company_id', '=', company_id), ('company_id', '=', False)]
-        rec = self.search(domain, limit=1)
-        if rec.new_id:
-            return rec.new_id
+        rec = self.search(domain)
+        rec_new_id = rec.filtered(lambda r: r.new_id)
+        if rec_new_id:
+            return rec_new_id[0].new_id
+        if len(rec) > 1:
+            rec = rec[0]
         if rec.data and create:
             data = json.loads(rec.data)
             if company_id and data.get('company_id'):
@@ -130,7 +134,7 @@ class MigrationRecord(models.Model):
                 vals[key] = value
         return vals
 
-    def get_or_create_new_id(self, value=None, field_map=False,  field_type='', relation='', flag_try_old_id=False, test=False, company_id=0):
+    def get_or_create_new_id(self, value=None, field_map=False,  field_type='', relation='', flag_try_old_id=False, test=False, company_id=0, force_create=False):
         """
         :param flag_try_old_id:
         :param field_map: dict with keys: name, type, required, relation, etc
@@ -188,9 +192,10 @@ class MigrationRecord(models.Model):
         if not new_rec and flag_try_old_id:
             new_rec = res_model.browse(old_id).exists().id
         if not new_rec:
-            omit = relation and [True for r in BASE_MODEL_PREFIX if relation.startswith(r)]
-            if omit:
-                _log.warning('try to create a base model record %s for %s' % (relation, [old_id, name]))
+            omit = self.migration_model.only_fetch_data or ((relation and [True for r in BASE_MODEL_PREFIX if relation.startswith(r)]))
+            allowed = force_create
+            if omit and not allowed:
+                _log.warning('try to create a forbidden model record %s for %s' % (relation, [old_id, name]))
                 return 0
             if raw_vals:
                 vals = self.prepare_vals(raw_vals, model=relation, company_id=company_id)
@@ -279,6 +284,7 @@ class MigrationModel(models.Model):
     fields_mapping = fields.Text(
         stored=True,
         help='JSON object key:object where key is old field name and value the new one, add all fields you want to migrate')
+    only_fetch_data = fields.Boolean()
     threads = fields.Integer(help='for parallel workers, if it\'s 0 will execute synchronous')
     migration_record_ids = fields.One2many('migration.record', 'migration_model')
     status_message = fields.Text(stored=True)
@@ -302,6 +308,9 @@ class MigrationModel(models.Model):
     migration_progress = fields.Integer(compute='_compute_progress')
     has_auto_process = fields.Boolean(compute='_compute_progress')
 
+    # temporal fields
+    account_id = fields.Many2one('account.account')
+
     def compute_fields_mapping(self, dependencies=[]):
         for rec in self:
             try:
@@ -316,10 +325,10 @@ class MigrationModel(models.Model):
                 except KeyError:
                     res_model = conn.env[rec.model]
 
-                model_fields = res_model.fields_get()
-                stored_fields = [f for f in model_fields if model_fields[f].get('store', True)]
                 old_res_model = conn.env[rec.model]
                 old_model_fields = old_res_model.fields_get()
+                model_fields = res_model.fields_get() if not self.only_fetch_data else old_model_fields
+                stored_fields = [f for f in model_fields if model_fields[f].get('store', True)]
                 old_fields_list = []
                 fields_mapping = {}
                 if not dependencies:
@@ -331,7 +340,7 @@ class MigrationModel(models.Model):
                     if new_field.get('type') == 'one2many' and not rec.read_one2many_fields:
                         continue
                     old_field = old_model_fields.get(field)
-                    if old_field:
+                    if old_field or self.only_fetch_data:
                         name = field
                         old_fields_list.append(field)
                     else:
@@ -424,7 +433,7 @@ class MigrationModel(models.Model):
                 self.status_message = repr(e)
     
     def run_import_process(self, test=False):
-        if self.state != 'ready':
+        if self.state != 'ready' or self.only_fetch_data:
             return  # raise ValidationError('Fetch data is no ready')
         if test:
             self.run_import_batch(self.migration_record_ids, test=test)
@@ -452,7 +461,7 @@ class MigrationModel(models.Model):
                     rec.map_record()
                     if rec.new_id:
                         continue
-                    new_obj = rec.get_or_create_new_id(test=test)
+                    new_obj = rec.get_or_create_new_id(test=test, force_create=True)
                 except Exception as e:
                     _log.exception(e)
                     if test:
@@ -484,24 +493,46 @@ class MigrationModel(models.Model):
     def auto_process(self):
         if self.model not in WITH_AUTO_PROCESS:
             raise ValidationError('Method Only available for model sale.order')
+        if self.model == 'update_product_template_costs':
+            # todo: temporal solution to update product costs
+            if not self.migration_record_ids and self.fields_mapping:
+                # products is a list of ['default_code','cost']
+                products = json.loads(self.fields_mapping)
+                self.total_records = len(products)
+                self.migration_record_ids = [(0, 0, {'name': p[0], 'data': p[1]}) for p in products]
+
         if self.threads:
             n_batch = self.total_records / self.threads
             chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_auto_process(batch)
         else:
-            self.run_auto_process()
+            self.run_auto_process(self.migration_record_ids)
 
 
     @job
     def run_auto_process(self, migration_record_ids):
         self.env.user.company_ids = self.env.user.company_id.search([])
+        self.env.user.company_id = self.company_id
+        if self.model == 'update_product_template_costs':
+            assert self.account_id, 'account id is required'
+            self.run_update_product_template_cost(migration_record_ids)
+            return
+        elif self.model in ('sale.order', 'purchase.order'):
+            self.run_process_orders(migration_record_ids)
+        elif self.model == 'stock.picking':
+            self.run_process_picking(migration_record_ids)
+
+    def run_process_orders(self, migration_record_ids):
         has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
         sale_obj = self.env[self.model]
         picking_fields = ['origin', 'note', 'state', 'date_done', 'carrier_id','carrier_tracking_ref',]
         if has_sp_op_migration:
             picking_fields.append('pack_operation_ids')
         conn = self.conn()
+        mr_obj = self.env['migration.record']
+        move_obj = self.env['account.move']
+        company_id = self.company_id
         for rec in migration_record_ids:
             try:
                 if not rec.new_id:
@@ -515,14 +546,20 @@ class MigrationModel(models.Model):
                 if round(so.amount_total) != round(old_data.get('amount_total')):
                     rec.write({'state': 'error', 'state_message': 'Amount total discrepancy'})
                     continue
-
                 old_state = old_data.get('state')
-                if old_state != 'sale':
+                old_date = old_data.get('date_order')
+                if old_state not in ('sale', 'purchase'):
                     _log.warning('order was in state %s' % old_state)
                     continue
                 # Validate the order
-                so.action_confirm()
-
+                if self.model == 'sale.order':
+                    so.action_confirm()
+                    so.date_order = old_date
+                elif self.model == 'purchase.order':
+                    so.button_confirm()
+                    so.date_approve = old_date
+                else:
+                    raise NotImplementedError(self.model)
                 # get old delivery data
                 old_sp_ids = old_data.get('picking_ids')
                 if not old_sp_ids:
@@ -544,15 +581,16 @@ class MigrationModel(models.Model):
                 if has_sp_op_migration:
                     # for V10
                     # todo add support for stock.move V13
-                    op_lines = sp_data.get('pack_operation_ids')
-                    if op_lines:
-                        sp_lines = rec.search([('model', '=', 'stock.pack.operation'), ('old_id', 'in', op_lines)])
-                        if sp_lines:
-                            sp_lines = [json.loads(r.data) for r in sp_lines if r.data]
-                        else:
-                            # get from connection
-                            sp_lines = conn.env['stock.pack.operation'].search_read(
-                                [('id', 'in', op_lines)], ['product_qty', 'location_id', 'state', 'qty_done', 'product_id', 'location_dest_id'])
+                    for sp_val in validated_pickings:
+                        op_lines = sp_val.get('pack_operation_ids')
+                        if op_lines:
+                            sp_lines = mr_obj.search([('model', '=', 'stock.pack.operation'), ('old_id', 'in', op_lines)])
+                            if sp_lines:
+                                sp_lines = [json.loads(r.data) for r in sp_lines if r.data]
+                            else:
+                                # get from connection
+                                sp_lines = conn.env['stock.pack.operation'].search_read(
+                                    [('id', 'in', op_lines)], ['product_qty', 'location_id', 'state', 'qty_done', 'product_id', 'location_dest_id','product_uom_id'])
 
                 if not sp_lines:
                     rec.write({'state_message': 'no picking lines found'})
@@ -565,29 +603,50 @@ class MigrationModel(models.Model):
                     if l.get('id') not in unique_line_ids:
                         unique_line_ids.append(l.get('id'))
                         old_product_id = l.get('product_id')
-                        product_id = rec.get_new_id(model='product.product', old_id=old_product_id)
-                        location_id = rec.get_new_id(model='stock.location', old_id=l.get('location_id'), company_id=rec.company_id)
+                        product_id = mr_obj.get_or_create_new_id(value=old_product_id, relation='product.product')
+                        location_id = mr_obj.get_or_create_new_id(value=l.get('location_id'), relation='stock.location', company_id=company_id.id)
+                        location_dest_id = mr_obj.get_or_create_new_id(value=l.get('location_dest_id'), relation='stock.location', company_id=company_id.id)
                         qty = l.get('qty_done')
-                        if not (product_id and location_id and qty):
-                            raise ValidationError('missing product, qty, location')
+                        product_uom_id = mr_obj.get_or_create_new_id(value=l.get('product_uom_id'), relation='uom.uom')
+                        if not location_id:
+                            _log.warning('location %s not found will use default' % l.get('location_id'))
+                        if not location_dest_id:
+                            _log.warning('location dest %s not found will use default' % l.get('location_dest_id'))
+                        if not (product_id and qty, product_uom_id):
+                            raise ValidationError('missing product, qty, location, product_uom_id')
                         unique_lines.append((0, 0, {
                             'product_id': product_id,
                             'qty_done': qty,
-                            'location_id': location_id
+                            'location_id': location_id or sp.location_id.id,
+                            'product_uom_id': product_uom_id,
+                            'location_dest_id': location_dest_id or sp.location_dest_id.id,
                         }))
 
                 # set moves
                 sp.move_line_ids_without_package = unique_lines
                 # validate delivery
+                sp_date = sp.date
                 sp.action_done()
-
+                sp.date_done = sp_date
+                invoices = False
                 # create and validate invoice
                 if old_data.get('invoice_status') == 'invoiced':
-                    invoices = so._create_invoices()
-                    if so.company_id.l10n_mx_edi_certificate_ids:
-                        # avoid to generate fe invoice
-                        invoices.write({'l10n_mx_edi_origin': 0})
-                    invoices.post()
+                    if self.model == 'sale.order':
+                        invoices = so._create_invoices()
+                    elif self.model == 'purchase.order':
+                        action = so.with_context(create_bill=True).action_view_invoice()
+                        form = Form(move_obj.with_context(action['context']))
+                        invoices = form.save()
+                    if invoices:
+                        if hasattr(invoices, 'l10n_mx_edi_origin'):
+                            # avoid to generate fe invoice
+                            invoices.update({'l10n_mx_edi_origin': 0})
+                        invoices.update({'date': sp_date})
+                        invoices.post()
+                        invoices.update({
+                            'invoice_date': sp_date,
+                            'invoice_date_due': sp_date,
+                        })
                 #commit changes
                 self.env.cr.commit()
 
@@ -606,8 +665,58 @@ class MigrationModel(models.Model):
                 #         raise e2
                 _log.error(e)
 
+    def run_update_product_template_cost(self, migration_record_ids):
+        tmpl_obj = self.env['product.template']
+        for rec in migration_record_ids:
+            try:
+                if rec.state == 'done':
+                    continue
+                default_code = rec.name
+                cost = float(rec.data.replace(',', '.'))
+                product_templates = tmpl_obj.search([('default_code', '=', default_code)])
+                for product_template in product_templates:
+                    product_template.product_variant_ids._change_standard_price(cost, counterpart_account_id=self.account_id.id)
+                self.env.cr.commit()
+            except Exception as e:
+                self.env.cr.rollback()
+                rec.write({'state': 'error', 'state_message': repr(e)})
 
+    def run_process_picking(self, migration_record_ids):
+        has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
+        rec_obj = self.env[self.model]
+        picking_fields = ['origin', 'note', 'state', 'date_done', 'carrier_id','carrier_tracking_ref',]
+        if has_sp_op_migration:
+            picking_fields.append('pack_operation_ids')
+        conn = self.conn()
+        mr_obj = self.env['migration.record']
+        company_id = self.company_id
+        for rec in migration_record_ids:
+            try:
+                if not rec.new_id:
+                    _log.warning('omit record because no new id')
+                    continue
+                res_id = rec_obj.browse(rec.new_id)
+                if res_id.state != 'draft':
+                    _log.warning('record %s is not in draft' % rec.name)
+                    continue
+                old_data = json.loads(rec.data)
+                #commit changes
+                self.env.cr.commit()
 
+            except Exception as e:
+                self.env.cr.rollback()
+                rec.write({'state': 'error', 'state_message': repr(e)})
+                # sql_errors = 0
+                # try:
+                #     self.env.cr.commit()
+                # except Exception as e2:
+                #     if sql_errors < 200:
+                #         sql_errors += 1
+                #         _log.exception(e2)
+                #         self.env.cr.rollback()
+                #     else:
+                #         raise e2
+                _log.error(e)
 
     @job
     def prepare_records_from_old_server(self, run_import=False, test=False):
@@ -639,7 +748,7 @@ class MigrationModel(models.Model):
             if self.date_from:
                 domain.append(('create_date', '>=', str(self.date_from)))
             if self.date_to:
-                domain.append(('create_date', '<=', str(self.date_to)))
+                domain.append(('create_date', '<', str(self.date_to)))
             if self.extra_domain:
                 extra_domain = json.loads(self.extra_domain)
                 domain += extra_domain
