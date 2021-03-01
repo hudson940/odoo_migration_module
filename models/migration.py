@@ -533,7 +533,6 @@ class MigrationModel(models.Model):
         account_move = self.env['account.move']
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
-        sales_team_model = self.env['sales.team']
 
         errors_journal = []
         errors_account = []
@@ -549,12 +548,12 @@ class MigrationModel(models.Model):
                 invoice_line_ids = old_data.get('invoice_line_ids')
                 journal_old_id = old_data.get('journal_id')
 
-                if journal_old_id[0]:
+                if journal_old_id:
                     journal_id = self.env['migration.record'].get_new_id('account.journal', journal_old_id[0],company_id=self.company_id.id, create=False)
                     if not journal_id and journal_old_id[ 1 ] not in errors_journal:
                         errors_journal.append( journal_old_id[ 1 ] )
 
-                if payment_term_old_id[0]:
+                if payment_term_old_id:
                     payment_term_id = self.env['migration.record'].get_new_id('account.payment.term', payment_term_old_id[0],company_id=self.company_id.id, create=False)
                     if not payment_term_id and payment_term_old_id[ 1 ] not in errors_payment_terms:
                         errors_payment_terms.append( payment_term_old_id[ 1 ] )
@@ -575,7 +574,7 @@ class MigrationModel(models.Model):
                                     tax_id = json.loads( s.data )
                                     tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
 
-                        if account_old_id[0]:
+                        if account_old_id:
                             account_id = self.env['migration.record'].get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
                                                          create=False)
 
@@ -649,7 +648,7 @@ class MigrationModel(models.Model):
                                 create_invoice_line.append((0, 0, {
                                     'name': name,
                                     'product_id': product_id[ 0 ] if product_id else False,
-                                    'price_unit': price_unit,
+                                    'price_unit': float(price_unit),
                                     'quantity': quantity,
                                     'account_id': account_id,
                                     'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
