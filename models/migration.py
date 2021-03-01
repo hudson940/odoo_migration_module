@@ -18,7 +18,7 @@ BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 're
                      'product.pricelist', 'product.product', 'stock.picking.type','uom.','crm.team', 'stock.warehouse', 'stock.picking']
 # todo: add bool field on migration.model like use_same_id
 MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
-WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice']
+WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice', 'stock.picking']
 
 
 class MigrationRecord(models.Model):
@@ -90,6 +90,10 @@ class MigrationRecord(models.Model):
         in_status = self.migration_model.import_in_state
         company_id = company_id or self.company_id.id or self.migration_model.company_id.id
         for key in data:
+            field_map = fields_mapping.get(key) or {}
+            if not field_map:
+                # Field does not exist in new odoo
+                continue
             if key in ('id', 'display_name'):
                 continue
             if key == 'company_id' and company_id:
@@ -100,7 +104,6 @@ class MigrationRecord(models.Model):
                 continue
             value = data[key]
             if isinstance(value, (list, tuple)):
-                field_map = fields_mapping.get(key) or {}
                 field_type = field_map.get('type')
                 if field_type == 'many2one':
                     # value is a tuple with (id, name)
@@ -167,18 +170,16 @@ class MigrationRecord(models.Model):
         if isinstance(value, (list,tuple)) and len(value) == 2:
             old_id = value[0]
             name = value[1]
-            id = self.get_new_id(relation, old_id, company_id=company_id)
+            id = self.get_new_id(relation, old_id, company_id=company_id, create=False)
             if id:
                 return id
-        elif field_map and isinstance(value, dict):
+        elif isinstance(value, dict):
             old_id = value.get('id') or self.old_id
             name = value.get('name')
             raw_vals = value
-            id = self.get_new_id(relation, old_id)
+            id = self.get_new_id(relation, old_id, create=False)
             if id:
                 return id
-        elif self.exists() and isinstance(value, dict):
-            raw_vals = value
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
             domain = [('complete_name' if has_complete_name else 'name', '=', name)]
             has_company = hasattr(res_model, 'company_id')
@@ -721,46 +722,14 @@ class MigrationModel(models.Model):
                     # for V10
                     # todo add support for stock.move V13
                     for sp_val in validated_pickings:
-                        op_lines = sp_val.get('pack_operation_ids')
-                        if op_lines:
-                            sp_lines = mr_obj.search([('model', '=', 'stock.pack.operation'), ('old_id', 'in', op_lines)])
-                            if sp_lines:
-                                sp_lines = [json.loads(r.data) for r in sp_lines if r.data]
-                            else:
-                                # get from connection
-                                sp_lines = conn.env['stock.pack.operation'].search_read(
-                                    [('id', 'in', op_lines)], ['product_qty', 'location_id', 'state', 'qty_done', 'product_id', 'location_dest_id','product_uom_id'])
+                        sp_lines += self.get_sp_lines_from_op_lines(sp_val, conn=conn, mr_obj=mr_obj)
 
                 if not sp_lines:
                     rec.write({'state_message': 'no picking lines found'})
                     continue
                 sp = so.picking_ids
                 # set unique operation lines
-                unique_line_ids = []
-                unique_lines = []
-                for l in sp_lines:
-                    if l.get('id') not in unique_line_ids:
-                        unique_line_ids.append(l.get('id'))
-                        old_product_id = l.get('product_id')
-                        product_id = mr_obj.get_or_create_new_id(value=old_product_id, relation='product.product')
-                        location_id = mr_obj.get_or_create_new_id(value=l.get('location_id'), relation='stock.location', company_id=company_id.id)
-                        location_dest_id = mr_obj.get_or_create_new_id(value=l.get('location_dest_id'), relation='stock.location', company_id=company_id.id)
-                        qty = l.get('qty_done')
-                        product_uom_id = mr_obj.get_or_create_new_id(value=l.get('product_uom_id'), relation='uom.uom')
-                        if not location_id:
-                            _log.warning('location %s not found will use default' % l.get('location_id'))
-                        if not location_dest_id:
-                            _log.warning('location dest %s not found will use default' % l.get('location_dest_id'))
-                        if not (product_id and qty, product_uom_id):
-                            raise ValidationError('missing product, qty, location, product_uom_id')
-                        unique_lines.append((0, 0, {
-                            'product_id': product_id,
-                            'qty_done': qty,
-                            'location_id': location_id or sp.location_id.id,
-                            'product_uom_id': product_uom_id,
-                            'location_dest_id': location_dest_id or sp.location_dest_id.id,
-                        }))
-
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
                 # set moves
                 sp.move_line_ids_without_package = unique_lines
                 # validate delivery
@@ -820,6 +789,53 @@ class MigrationModel(models.Model):
                 self.env.cr.rollback()
                 rec.write({'state': 'error', 'state_message': repr(e)})
 
+    @staticmethod
+    def get_sp_lines_from_op_lines(sp_val, conn, mr_obj):
+        op_lines = sp_val.get('pack_operation_ids')
+        if op_lines:
+            sp_lines = mr_obj.search([('model', '=', 'stock.pack.operation'), ('old_id', 'in', op_lines)])
+            if sp_lines:
+                sp_lines = [json.loads(r.data) for r in sp_lines if r.data]
+            else:
+                # get from connection
+                sp_lines = conn.env['stock.pack.operation'].search_read(
+                    [('id', 'in', op_lines)],
+                    ['product_qty', 'location_id', 'state', 'qty_done', 'product_id', 'location_dest_id',
+                     'product_uom_id'])
+            return sp_lines
+        return []
+
+    @staticmethod
+    def get_sp_unique_move_lines(sp_lines, mr_obj, company_id):
+        unique_line_ids = []
+        unique_lines = []
+        for l in sp_lines:
+            if l.get('id') not in unique_line_ids:
+                unique_line_ids.append(l.get('id'))
+                old_product_id = l.get('product_id')
+                product_id = mr_obj.get_or_create_new_id(value=old_product_id, relation='product.product')
+                location_id = mr_obj.get_or_create_new_id(value=l.get('location_id'), relation='stock.location',
+                                                          company_id=company_id.id)
+                location_dest_id = mr_obj.get_or_create_new_id(value=l.get('location_dest_id'),
+                                                               relation='stock.location', company_id=company_id.id)
+                qty = l.get('qty_done')
+                product_uom_id = mr_obj.get_or_create_new_id(value=l.get('product_uom_id'), relation='uom.uom')
+                if not location_id:
+                    _log.warning('location %s not found will use default' % l.get('location_id'))
+                if not location_dest_id:
+                    _log.warning('location dest %s not found will use default' % l.get('location_dest_id'))
+                if not (product_id and qty, product_uom_id):
+                    raise ValidationError('missing product, qty, location, product_uom_id')
+                unique_lines.append((0, 0, {
+                    'product_id': product_id,
+                    'qty_done': qty,
+                    'location_id': location_id or sp.location_id.id,
+                    'product_uom_id': product_uom_id,
+                    'location_dest_id': location_dest_id or sp.location_dest_id.id,
+                }))
+        return unique_lines
+
+
     def run_process_picking(self, migration_record_ids):
         has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
         rec_obj = self.env[self.model]
@@ -831,14 +847,36 @@ class MigrationModel(models.Model):
         company_id = self.company_id
         for rec in migration_record_ids:
             try:
-                if not rec.new_id:
-                    _log.warning('omit record because no new id')
+                sp = rec_obj.browse(rec.new_id).exists()
+                if sp and sp.state != 'draft':
+                    _log.warning('Picking not in draft')
                     continue
-                res_id = rec_obj.browse(rec.new_id)
-                if res_id.state != 'draft':
-                    _log.warning('record %s is not in draft' % rec.name)
+                sp_val = json.loads(rec.data)
+                old_state = sp_val.get('state')
+                sp_lines = []
+                if has_sp_op_migration:
+                    # for V10
+                    sp_lines = self.get_sp_lines_from_op_lines(sp_val, conn, mr_obj)
+                if not sp_lines:
+                    rec.write({'state_message': 'no picking lines found'})
                     continue
-                old_data = json.loads(rec.data)
+
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
+                if not sp:
+                    del sp_val['move_lines']
+                    sp_id = rec.get_or_create_new_id(value=sp_val, company_id=company_id.id, force_create=True)
+                    sp = rec_obj.browse(sp_id)
+                if not sp:
+                    _log.warning('Picking not found %s' % sp_val.get('name'))
+                    continue
+                if not sp.move_line_ids_without_package:
+                    sp.move_line_ids_without_package = unique_lines
+
+                if old_state in ('done',):
+                    sp_date = sp.date
+                    sp.action_done()
+                    sp.date_done = sp_date
+
                 #commit changes
                 self.env.cr.commit()
 
