@@ -729,7 +729,7 @@ class MigrationModel(models.Model):
                     continue
                 sp = so.picking_ids
                 # set unique operation lines
-                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
                 # set moves
                 sp.move_line_ids_without_package = unique_lines
                 # validate delivery
@@ -806,7 +806,7 @@ class MigrationModel(models.Model):
         return []
 
     @staticmethod
-    def get_sp_unique_move_lines(sp_lines, mr_obj, company_id):
+    def get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp=None):
         unique_line_ids = []
         unique_lines = []
         for l in sp_lines:
@@ -861,7 +861,6 @@ class MigrationModel(models.Model):
                     rec.write({'state_message': 'no picking lines found'})
                     continue
 
-                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
                 if not sp:
                     del sp_val['move_lines']
                     sp_id = rec.get_or_create_new_id(value=sp_val, company_id=company_id.id, force_create=True)
@@ -869,6 +868,7 @@ class MigrationModel(models.Model):
                 if not sp:
                     _log.warning('Picking not found %s' % sp_val.get('name'))
                     continue
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
                 if not sp.move_line_ids_without_package:
                     sp.move_line_ids_without_package = unique_lines
 
