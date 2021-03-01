@@ -535,16 +535,23 @@ class MigrationModel(models.Model):
         errors_journal = []
         errors_account = []
         errors_tax = []
+        errors_payment_terms = []
         for rec in migration_record_ids:
             try:
                 old_data = json.loads(rec.data)
+                payment_term_old_id = old_data.get('payment_term_id')
                 invoice_line_ids = old_data.get('invoice_line_ids')
                 journal_old_id = old_data.get('journal_id')
-                journal_id = self.env['migration.record'].get_new_id('account.journal', journal_old_id[0],
-                                                                     company_id=self.company_id.id, create=False)
 
-                if not journal_id and journal_old_id[ 1 ] not in errors_journal:
-                    errors_journal.append( journal_old_id[ 1 ] )
+                if journal_old_id[0]:
+                    journal_id = self.env['migration.record'].get_new_id('account.journal', journal_old_id[0],company_id=self.company_id.id, create=False)
+                    if not journal_id and journal_old_id[ 1 ] not in errors_journal:
+                        errors_journal.append( journal_old_id[ 1 ] )
+
+                if payment_term_old_id[0]:
+                    payment_term_id = self.env['migration.record'].get_new_id('account.payment.term', payment_term_old_id[0],company_id=self.company_id.id, create=False)
+                    if not payment_term_id and payment_term_old_id[ 1 ] not in errors_payment_terms:
+                        errors_payment_terms.append( payment_term_old_id[ 1 ] )
 
                 invoice_line_ids = list(invoice_line_ids)
                 inv_line_recs = rec.search([('model', '=', 'account.invoice.line'), ('old_id', 'in', invoice_line_ids)])
@@ -560,14 +567,14 @@ class MigrationModel(models.Model):
                             for s in line_taxes_recs:
                                 if s.data:
                                     tax_id = json.loads( s.data )
-
                                     tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
 
-                        account_id = self.env['migration.record'].get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
-                                                     create=False)
+                        if account_old_id[0]:
+                            account_id = self.env['migration.record'].get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
+                                                         create=False)
 
-                        if not account_id and account_old_id[1] not in errors_account:
-                            errors_account.append(account_old_id[1])
+                            if not account_id and account_old_id[1] not in errors_account:
+                                errors_account.append(account_old_id[1])
 
 
             except Exception as e:
@@ -575,8 +582,8 @@ class MigrationModel(models.Model):
                 rec.write({'state': 'error', 'state_message': repr(e)})
                 _log.error(e)
 
-        if errors_journal:
-            raise ValidationError( '\n'.join(errors_journal) + '\n\n\n' + '\n'.join(errors_account) + '\n'   )
+        if errors_account or errors_payment_terms:
+            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
 
         for rec in migration_record_ids:
             try:
@@ -594,6 +601,12 @@ class MigrationModel(models.Model):
                 state = old_data.get('state')
                 invoice_line_ids = old_data.get('invoice_line_ids')
                 journal_id = old_data.get('journal_id')
+
+                so_exits_origin = self.env['sale.order'].search([('client_order_ref', '=', origin)])
+                po_exits_origin = self.env['purchase.order'].search([('partner_ref', '=', origin)])
+
+                if so_exits_origin or po_exits_origin:
+                    continue
 
 
                 if partner_id:
@@ -634,15 +647,19 @@ class MigrationModel(models.Model):
                             else:
                                 raise ValidationError('The product is required %s' % (product_id[0]))
 
-                    journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
-
+                    """journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
                     if not journal_id:
                         raise ValidationError('The journal is requiere to create the invoice old id %s please map it' % ( journal_id[ 0 ] ))
+
+                    payment_term_id = self.env['migration.record'].get_new_id('account.payment.term',
+                                                                              payment_term_id[0],
+                                                                              company_id=self.company_id.id,
+                                                                              create=False)"""
 
                     account_move_id = account_move.create({
                         'partner_id' : partner_id[ 0 ] if partner_id else False,
                         'partner_shipping_id' : partner_shipping_id[ 0 ] if partner_shipping_id else False,
-                        'invoice_payment_term_id' : payment_term_id[ 0 ] if payment_term_id else False,
+                        'invoice_payment_term_id' : payment_term_id if payment_term_id else False,
                         'invoice_date' : invoice_date,
                         'user_id' : user_id[ 0 ] if user_id else False,
                         'currency_id' : self.env['res.currency'].search([('name', '=', currency_id[ 1 ])]).id,
