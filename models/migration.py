@@ -590,6 +590,8 @@ class MigrationModel(models.Model):
         if errors_account or errors_payment_terms:
             raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
 
+        return False
+
         for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
                 continue
