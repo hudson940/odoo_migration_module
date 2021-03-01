@@ -531,12 +531,18 @@ class MigrationModel(models.Model):
         # account
         # tax
         account_move = self.env['account.move']
+        partner_model = self.env['res.partner']
+        res_user_model = self.env['res.users']
+        sales_team_model = self.env['sales.team']
 
         errors_journal = []
         errors_account = []
         errors_tax = []
         errors_payment_terms = []
         for rec in migration_record_ids:
+            if rec.new_id and rec.state == 'done':
+                continue
+
             try:
                 old_data = json.loads(rec.data)
                 payment_term_old_id = old_data.get('payment_term_id')
@@ -586,6 +592,9 @@ class MigrationModel(models.Model):
             raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
 
         for rec in migration_record_ids:
+            if rec.new_id and rec.state == 'done':
+                continue
+
             try:
                 old_data = json.loads(rec.data)
 
@@ -602,11 +611,12 @@ class MigrationModel(models.Model):
                 invoice_line_ids = old_data.get('invoice_line_ids')
                 journal_id = old_data.get('journal_id')
 
-                so_exits_origin = self.env['sale.order'].search([('client_order_ref', '=', origin)])
-                po_exits_origin = self.env['purchase.order'].search([('partner_ref', '=', origin)])
+                if origin:
+                    so_exits_origin = self.env['sale.order'].search([('client_order_ref', '=', origin)])
+                    po_exits_origin = self.env['purchase.order'].search([('partner_ref', '=', origin)])
 
-                if so_exits_origin or po_exits_origin:
-                    continue
+                    if so_exits_origin or po_exits_origin:
+                        continue
 
 
                 if partner_id:
@@ -644,8 +654,6 @@ class MigrationModel(models.Model):
                                     'account_id': account_id,
                                     'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
                                 }))
-                            else:
-                                raise ValidationError('The product is required %s' % (product_id[0]))
 
                     """journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
                     if not journal_id:
@@ -656,23 +664,40 @@ class MigrationModel(models.Model):
                                                                               company_id=self.company_id.id,
                                                                               create=False)"""
 
-                    account_move_id = account_move.create({
-                        'partner_id' : partner_id[ 0 ] if partner_id else False,
-                        'partner_shipping_id' : partner_shipping_id[ 0 ] if partner_shipping_id else False,
-                        'invoice_payment_term_id' : payment_term_id if payment_term_id else False,
-                        'invoice_date' : invoice_date,
-                        'user_id' : user_id[ 0 ] if user_id else False,
-                        'currency_id' : self.env['res.currency'].search([('name', '=', currency_id[ 1 ])]).id,
-                        'team_id' : team_id[ 0 ] if team_id else False,
-                        'ref' : origin,
-                        'type' : type,
-                        'invoice_line_ids' : invoice_line_ids,
-                        'journal_id' : journal_id
-                    })
-                    if state == 'open':
-                        account_move_id.post()
+                    partner_id = partner_id[0] if partner_id else False
+                    partner_exist = partner_model.browse( partner_id )
 
-                    self.env.cr.commit()
+                    if not partner_exist:
+                        rec.write({'state_message': 'partner not found %s' % ( partner_id )})
+                        continue
+
+                    if not invoice_line_ids:
+                        rec.write({'state_message': 'no invoice lines'})
+                        continue
+
+
+                    if partner_exist and invoice_line_ids:
+
+                        account_move_id = account_move.create({
+                            'partner_id' : partner_id,
+                            'partner_shipping_id' : partner_shipping_id[ 0 ] if partner_shipping_id else False,
+                            'invoice_payment_term_id' : payment_term_id if payment_term_id else False,
+                            'invoice_date' : invoice_date,
+                            'user_id' : user_id[ 0 ] if user_id else False,
+                            'currency_id' : self.env['res.currency'].search([('name', '=', currency_id[ 1 ])]).id,
+                            'team_id' : team_id[ 0 ] if team_id else False,
+                            'ref' : origin,
+                            'type' : type,
+                            'invoice_line_ids' : invoice_line_ids,
+                            'journal_id' : journal_id[ 0 ] if journal_id else False,
+                            'company_id' : self.company_id.id
+                        })
+                        if state == 'open' or state == 'paid':
+                            account_move_id.post()
+
+                        rec.write({'state' : 'done', 'new_id' : account_move_id.id})
+
+                        self.env.cr.commit()
 
             except Exception as e:
                 self.env.cr.rollback()
