@@ -611,6 +611,7 @@ class MigrationModel(models.Model):
                 journal_id = old_data.get('journal_id')
                 number = old_data.get('number')
                 user_id = old_data.get('user_id')
+                invoice_date_due = old_data.get('invoice_date_due')
 
 
                 if origin and not 'refund' in type:
@@ -697,7 +698,8 @@ class MigrationModel(models.Model):
                             'invoice_line_ids' : create_invoice_line,
                             #'journal_id' : journal_id[ 0 ] if journal_id else False,
                             'company_id' : self.company_id.id,
-                            'invoice_user_id' : user_id[ 0 ] if user_id else False
+                            'invoice_user_id' : user_id[ 0 ] if user_id else False,
+                            'invoice_date_due' : invoice_date_due
                         })
                         if state == 'open' or state == 'paid':
                             account_move_id.post()
