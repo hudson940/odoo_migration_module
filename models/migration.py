@@ -534,7 +534,7 @@ class MigrationModel(models.Model):
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
 
-        """errors_journal = []
+        errors_journal = []
         errors_account = []
         errors_tax = []
         errors_payment_terms = []
@@ -588,7 +588,7 @@ class MigrationModel(models.Model):
                 _log.error(e)
 
         if errors_account or errors_payment_terms:
-            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )"""
+            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
 
         for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
