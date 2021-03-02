@@ -611,10 +611,12 @@ class MigrationModel(models.Model):
                 journal_id = old_data.get('journal_id')
                 number = old_data.get('number')
                 user_id = old_data.get('user_id')
+                invoice_date_due = old_data.get('invoice_date_due')
+
 
                 if origin and not 'refund' in type:
-                    so_exits_origin = self.env['sale.order'].search([('client_order_ref', '=', origin)])
-                    po_exits_origin = self.env['purchase.order'].search([('partner_ref', '=', origin)])
+                    so_exits_origin = self.env['sale.order'].search([('name', '=', origin)])
+                    po_exits_origin = self.env['purchase.order'].search([('name', '=', origin)])
 
                     if so_exits_origin or po_exits_origin:
                         continue
@@ -666,23 +668,24 @@ class MigrationModel(models.Model):
                     partner_id = partner_id[0] if partner_id else False
                     partner_exist = partner_model.browse( partner_id )
 
-                    payment_term_id = self.env['migration.record'].get_new_id('account.payment.term',
-                                                                              payment_term_id[0],
-                                                                              company_id=self.company_id.id,
-                                                                              create=False)
+                    if payment_term_id:
+                        payment_term_id = self.env['migration.record'].get_new_id('account.payment.term',
+                                                                                  payment_term_id[0],
+                                                                                  company_id=self.company_id.id,
+                                                                                  create=False)
 
                     if not partner_exist:
-                        rec.write({'state_message': 'partner not found %s' % ( partner_id )})
+                        rec.write({'state_message': 'partner not found %s' % ( partner_id ), 'state' : 'error'})
                         continue
 
                     if not create_invoice_line:
-                        rec.write({'state_message': 'no invoice lines'})
+                        rec.write({'state_message': 'no invoice lines', 'state' : 'error'})
                         continue
 
 
                     if partner_exist and create_invoice_line:
 
-                        account_move_id = account_move.create({
+                        account_move_id = account_move.sudo().create({
                             'partner_id' : partner_id,
                             'partner_shipping_id' : partner_shipping_id[ 0 ] if partner_shipping_id else False,
                             'invoice_payment_term_id' : payment_term_id if payment_term_id else False,
@@ -690,15 +693,19 @@ class MigrationModel(models.Model):
                             'user_id' : user_id[ 0 ] if user_id else False,
                             'currency_id' : self.env['res.currency'].search([('name', '=', currency_id[ 1 ])]).id,
                             'team_id' : team_id[ 0 ] if team_id else False,
-                            'ref' : origin,
+                            'invoice_origin' : origin,
                             'type' : type,
                             'invoice_line_ids' : create_invoice_line,
                             #'journal_id' : journal_id[ 0 ] if journal_id else False,
                             'company_id' : self.company_id.id,
-                            'invoice_user_id' : user_id[ 0 ] if user_id else False
+                            'invoice_user_id' : user_id[ 0 ] if user_id else False,
+                            'invoice_date_due' : invoice_date_due
                         })
                         if state == 'open' or state == 'paid':
                             account_move_id.post()
+
+                        if state == 'cancel':
+                            account_move_id.button_cancel()
 
                         rec.write({'state' : 'done', 'new_id' : account_move_id.id})
 
