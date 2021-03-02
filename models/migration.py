@@ -675,11 +675,11 @@ class MigrationModel(models.Model):
                                                                                   create=False)
 
                     if not partner_exist:
-                        rec.write({'state_message': 'partner not found %s' % ( partner_id )})
+                        rec.write({'state_message': 'partner not found %s' % ( partner_id ), 'state' : 'error'})
                         continue
 
                     if not create_invoice_line:
-                        rec.write({'state_message': 'no invoice lines'})
+                        rec.write({'state_message': 'no invoice lines', 'state' : 'error'})
                         continue
 
 
