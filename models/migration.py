@@ -81,14 +81,15 @@ class MigrationRecord(models.Model):
             return rec.get_or_create_new_id(data, field_type=rec.type, relation=model, test=test, company_id=company_id)
         return 0
 
-    def prepare_vals(self, data={}, fields_mapping={}, model='', test=False, company_id=0):
+    def prepare_vals(self, data={}, fields_mapping={}, model='', test=False, company_id=0, migration_model=None):
         if not data and self.data:
             data = json.loads(self.data)
         if not fields_mapping and model:
             fields_mapping = self.env[model].fields_get()
         vals = {}
-        in_status = self.migration_model.import_in_state
-        company_id = company_id or self.company_id.id or self.migration_model.company_id.id
+        migration_model = migration_model or self.migration_model
+        in_status = migration_model.import_in_state
+        company_id = company_id or self.company_id.id or migration_model.company_id.id
         for key in data:
             field_map = fields_mapping.get(key) or {}
             if not field_map:
@@ -127,7 +128,7 @@ class MigrationRecord(models.Model):
                         continue
                     values = [self.browse().get_or_create_new_id(
                         value=[old, ''], relation=related, field_type=field_type, flag_try_old_id=False,
-                        test=test, company_id=self.migration_model.company_id.id) for old in value]
+                        test=test, company_id=migration_model.company_id.id) for old in value]
                     values = [v for v in values if v]
                     if values:
                         vals[key] = [[6, 0, values]]
@@ -170,14 +171,15 @@ class MigrationRecord(models.Model):
         if isinstance(value, (list,tuple)) and len(value) == 2:
             old_id = value[0]
             name = value[1]
-            id = self.get_new_id(relation, old_id, company_id=company_id, create=False)
+            # if field map we can try to create the record here
+            id = self.get_new_id(relation, old_id, company_id=company_id, create=bool(field_map))
             if id:
                 return id
         elif isinstance(value, dict):
             old_id = value.get('id') or self.old_id
             name = value.get('name')
             raw_vals = value
-            id = self.get_new_id(relation, old_id, create=False)
+            id = self.get_new_id(relation, old_id, create=bool(field_map))
             if id:
                 return id
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
@@ -223,7 +225,7 @@ class MigrationRecord(models.Model):
                         old_model = migration_model.conn().env[relation]
                         data = old_model.search_read([('id', '=', old_id)], fields_to_read)
                         if data:
-                            vals = self.prepare_vals(data[0], model=relation, company_id=company_id)
+                            vals = self.prepare_vals(data[0], model=relation, company_id=company_id, migration_model=migration_model)
                             new_rec = res_model.create(vals).id
                     elif name:
                         new_rec = res_model.create({'name': name}).id
@@ -295,7 +297,7 @@ class MigrationModel(models.Model):
     total_records = fields.Integer()
     extra_domain = fields.Char(help='domain extra in json format [["field", "operator", "value"]]', default='[["active","=",true]]')
 
-    max_deep_level = fields.Integer(help="limit for recursion", default=3)
+    max_deep_level = fields.Integer(help="limit for recursion", default=1)
     current_deep_level = fields.Integer(help="the current level for this model", default=1)
     parent_id = fields.Many2one('migration.model')
     relation_field = fields.Char()
@@ -783,11 +785,12 @@ class MigrationModel(models.Model):
                     continue
                 sp = so.picking_ids
                 # set unique operation lines
-                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
                 # set moves
                 sp.move_line_ids_without_package = unique_lines
                 # validate delivery
-                sp_date = sp.date
+                sp_date = sp_data[0].get('date_done')
+                sp.date = sp_date
                 sp.action_done()
                 sp.date_done = sp_date
                 invoices = False
@@ -803,12 +806,12 @@ class MigrationModel(models.Model):
                         if hasattr(invoices, 'l10n_mx_edi_origin'):
                             # avoid to generate fe invoice
                             invoices.update({'l10n_mx_edi_origin': 0})
-                        invoices.update({'date': sp_date})
+                        invoices.update({'date': sp_date,
+                                         'invoice_date': sp_date,
+                                         'invoice_date_due': sp_date,
+                                         })
                         invoices.post()
-                        invoices.update({
-                            'invoice_date': sp_date,
-                            'invoice_date_due': sp_date,
-                        })
+
                 #commit changes
                 self.env.cr.commit()
 
@@ -860,7 +863,7 @@ class MigrationModel(models.Model):
         return []
 
     @staticmethod
-    def get_sp_unique_move_lines(sp_lines, mr_obj, company_id):
+    def get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp=None):
         unique_line_ids = []
         unique_lines = []
         for l in sp_lines:
@@ -915,7 +918,6 @@ class MigrationModel(models.Model):
                     rec.write({'state_message': 'no picking lines found'})
                     continue
 
-                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id)
                 if not sp:
                     del sp_val['move_lines']
                     sp_id = rec.get_or_create_new_id(value=sp_val, company_id=company_id.id, force_create=True)
@@ -923,6 +925,7 @@ class MigrationModel(models.Model):
                 if not sp:
                     _log.warning('Picking not found %s' % sp_val.get('name'))
                     continue
+                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
                 if not sp.move_line_ids_without_package:
                     sp.move_line_ids_without_package = unique_lines
 
@@ -956,11 +959,7 @@ class MigrationModel(models.Model):
                 # raise ValidationError('Migration state must be in To fetch')
                 return
             self.state = 'fetching'
-            if self.migration_record_ids:
-                self.state = 'ready'
-                if run_import:
-                    self.run_import_process(test=test)
-                    return
+
             if not test:
                 self.env.cr.commit()
             limit = 100 if test else None
@@ -980,6 +979,8 @@ class MigrationModel(models.Model):
                 domain.append(('create_date', '>=', str(self.date_from)))
             if self.date_to:
                 domain.append(('create_date', '<', str(self.date_to)))
+            if self.migration_record_ids:
+                domain.append(('id', 'not in', self.migration_record_ids.mapped('old_id')))
             if self.extra_domain:
                 extra_domain = json.loads(self.extra_domain)
                 domain += extra_domain
