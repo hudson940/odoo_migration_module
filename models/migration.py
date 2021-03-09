@@ -19,7 +19,7 @@ BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 're
 # todo: add bool field on migration.model like use_same_id
 MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
 WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice', 'stock.picking']
-
+COMPUTED_FIELDS_TO_READ = ['invoice_ids']
 
 class MigrationRecord(models.Model):
     _name = 'migration.record'
@@ -331,7 +331,7 @@ class MigrationModel(models.Model):
                 old_res_model = conn.env[rec.model]
                 old_model_fields = old_res_model.fields_get()
                 model_fields = res_model.fields_get() if not self.only_fetch_data else old_model_fields
-                stored_fields = [f for f in model_fields if model_fields[f].get('store', True)]
+                stored_fields = [f for f in model_fields if model_fields[f].get('store', True) or f in COMPUTED_FIELDS_TO_READ]
                 old_fields_list = []
                 fields_mapping = {}
                 if not dependencies:
@@ -442,7 +442,7 @@ class MigrationModel(models.Model):
             self.run_import_batch(self.migration_record_ids, test=test)
         if self.threads > 0:
             self.state = 'importing'
-            n_batch = self.total_records / self.threads
+            n_batch = (self.total_records or len(self.migration_record_ids)) / self.threads
             chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_import_batch(batch)
@@ -505,7 +505,7 @@ class MigrationModel(models.Model):
                 self.migration_record_ids = [(0, 0, {'name': p[0], 'data': p[1]}) for p in products]
 
         if self.threads:
-            n_batch = self.total_records / self.threads
+            n_batch = (self.total_records or len(self.migration_record_ids)) / self.threads
             chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_auto_process(batch)
@@ -734,6 +734,7 @@ class MigrationModel(models.Model):
                     _log.warning('omit order because no new id')
                     continue
                 so = sale_obj.browse(rec.new_id)
+
                 if so.state != 'draft':
                     _log.warning('order %s is not in draft' % rec.name)
                     continue
@@ -792,9 +793,11 @@ class MigrationModel(models.Model):
                 sp.date = sp_date
                 sp.action_done()
                 sp.date_done = sp_date
+                # write the sp_id to old sp_rec
+                sp_rec.update({'new_id': sp.id})
                 invoices = False
                 # create and validate invoice
-                if old_data.get('invoice_status') == 'invoiced':
+                if old_data.get('invoice_ids'):
                     if self.model == 'sale.order':
                         invoices = so._create_invoices()
                     elif self.model == 'purchase.order':
@@ -817,16 +820,6 @@ class MigrationModel(models.Model):
             except Exception as e:
                 self.env.cr.rollback()
                 rec.write({'state': 'error', 'state_message': repr(e)})
-                # sql_errors = 0
-                # try:
-                #     self.env.cr.commit()
-                # except Exception as e2:
-                #     if sql_errors < 200:
-                #         sql_errors += 1
-                #         _log.exception(e2)
-                #         self.env.cr.rollback()
-                #     else:
-                #         raise e2
                 _log.error(e)
 
     def run_update_product_template_cost(self, migration_record_ids):
@@ -986,7 +979,7 @@ class MigrationModel(models.Model):
             fields_to_read = json.loads(self.old_fields_list)
             fields_to_read.append('display_name')
             old_records = old_model.search(domain, limit=limit)
-            self.total_records = len(old_records)
+            self.total_records = self.total_records + len(old_records)
             chunks = get_chunks(old_records)
             dependencies = self.dependency_ids.search([('state', '=', 'to_fetch'), ('id', '!=', self.id)])
             for dep in dependencies:
@@ -1015,5 +1008,53 @@ class MigrationModel(models.Model):
             self.env.cr.commit()
             raise e
 
+    def delete_incomplete_orders(self):
+        if self.model not in ('sale.order','purchase.order'):
+            raise ValidationError('model not allowed')
+        res_obj = self.env[self.model]
+        rec_obj = self.env['migration.record']
 
+        def cancel_order(order):
+            domain = [('new_id', 'in', order.order_line.ids), ('company_id', '=', self.company_id.id)]
 
+            if self.model == 'sale.order':
+                rec_lines = rec_obj.search(domain + [('model', '=', 'sale.order.line')])
+                order.action_cancel()
+            elif self.model == 'purchase.order':
+                rec_lines = rec_obj.search(domain + [('model', '=', 'purchase.order.line')])
+                order.button_cancel()
+            else:
+                return
+            rec_lines.unlink()
+
+        for rec in self.migration_record_ids:
+            try:
+                if not rec.new_id:
+                    rec.unlink()
+                res_id = res_obj.browse(rec.new_id)
+                sp = res_id.picking_ids
+                if not sp:
+                    cancel_order(res_id)
+                    res_id.unlink()
+                    rec.unlink()
+                    continue
+                # if none of sp has been confirmed
+                if not sp.filtered(lambda s: s.state == 'done'):
+                    sp_rec = rec_obj.search([('new_id', 'in', sp.ids), ('model', '=', 'stock.picking'), ('company_id', '=', self.company_id.id)])
+                    sp_rec.unlink()
+                    sp.unlink()
+                    cancel_order(res_id)
+                    res_id.unlink()
+                    rec.unlink()
+
+                elif rec.state == 'error':
+                    rec.update({
+                        'state': 'done',
+                        'state_message': False,
+                    })
+            except Exception as e:
+                _log.error(e)
+                rec.update({
+                    'state': 'error',
+                    'state_message': repr(e),
+                })
