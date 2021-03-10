@@ -533,7 +533,7 @@ class MigrationModel(models.Model):
         # journal
         # account
         # tax
-        """account_move = self.env['account.move']
+        account_move = self.env['account.move']
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
         mr_obj = self.env['migration.record']
@@ -591,7 +591,7 @@ class MigrationModel(models.Model):
                 _log.error(e)
 
         if errors_account or errors_payment_terms:
-            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )"""
+            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
 
         for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
