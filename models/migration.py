@@ -618,6 +618,7 @@ class MigrationModel(models.Model):
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
 
+
                 if origin and not 'refund' in type:
                     so_exits_origin = self.env['sale.order'].search_count([('name', '=', origin)])
                     po_exits_origin = self.env['purchase.order'].search_count([('name', '=', origin)])
