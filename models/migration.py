@@ -533,7 +533,7 @@ class MigrationModel(models.Model):
         # journal
         # account
         # tax
-        account_move = self.env['account.move']
+        """account_move = self.env['account.move']
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
         mr_obj = self.env['migration.record']
@@ -591,7 +591,7 @@ class MigrationModel(models.Model):
                 _log.error(e)
 
         if errors_account or errors_payment_terms:
-            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
+            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )"""
 
         for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
@@ -618,16 +618,13 @@ class MigrationModel(models.Model):
                 invoice_id = old_data.get('id')
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
-                _log.info("Entra 01")
-                _log.info( invoice_id )
+                if invoice_date:
+                    invoice_date_check = invoice_date.split(" ")[ 0 ]
 
-                if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-02",'%Y-%m-%d') and self.company_id.id == 58:
-                    continue
-
-                if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-01",'%Y-%m-%d') and self.company_id.id == 60:
-                    continue
-
-                _log.info("Pasa 2")
+                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-02",'%Y-%m-%d') and self.company_id.id == 58:
+                        continue
+                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-01",'%Y-%m-%d') and self.company_id.id == 60:
+                        continue
 
                 if origin and not 'refund' in type:
                     so_exits_origin = self.env['sale.order'].search_count([('name', '=', origin)])
