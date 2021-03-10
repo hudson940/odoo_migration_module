@@ -5,6 +5,7 @@ import logging
 import json
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
+import datetime
 _log = logging.getLogger(__name__)
 
 def get_chunks(iterable, n=1000):
@@ -618,6 +619,12 @@ class MigrationModel(models.Model):
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
 
+
+                if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-02",'%Y-%m-%d') and self.company_id.id == 58:
+                    continue
+
+                if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-01",'%Y-%m-%d') and self.company_id.id == 60:
+                    continue
 
                 if origin and not 'refund' in type:
                     so_exits_origin = self.env['sale.order'].search_count([('name', '=', origin)])
