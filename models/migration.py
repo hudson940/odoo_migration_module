@@ -618,13 +618,16 @@ class MigrationModel(models.Model):
                 invoice_id = old_data.get('id')
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
-
+                _log.info("Entra 01")
+                _log.info( invoice_id )
 
                 if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-02",'%Y-%m-%d') and self.company_id.id == 58:
                     continue
 
                 if datetime.datetime.strptime(invoice_date, '%Y-%m-%d %H:%M:%S') >= datetime.datetime.strptime("2021-03-01",'%Y-%m-%d') and self.company_id.id == 60:
                     continue
+
+                _log.info("Pasa 2")
 
                 if origin and not 'refund' in type:
                     so_exits_origin = self.env['sale.order'].search_count([('name', '=', origin)])
