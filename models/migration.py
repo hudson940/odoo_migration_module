@@ -614,11 +614,17 @@ class MigrationModel(models.Model):
                 number = old_data.get('number')
                 user_id = old_data.get('user_id')
                 invoice_date_due = old_data.get('invoice_date_due')
+                invoice_id = old_data.get('id')
+                shipping_invoice = old_data.get('shipping_invoice', False)
 
 
                 if origin and not 'refund' in type:
                     so_exits_origin = self.env['sale.order'].search([('name', '=', origin)])
                     po_exits_origin = self.env['purchase.order'].search([('name', '=', origin)])
+
+                    if shipping_invoice:
+                        so_exits_origin = False
+                        po_exits_origin = False
 
                     if so_exits_origin or po_exits_origin:
                         continue
