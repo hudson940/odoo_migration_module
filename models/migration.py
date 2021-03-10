@@ -19,7 +19,7 @@ BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 're
 # todo: add bool field on migration.model like use_same_id
 MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
 WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice', 'stock.picking']
-
+COMPUTED_FIELDS_TO_READ = ['invoice_ids']
 
 class MigrationRecord(models.Model):
     _name = 'migration.record'
@@ -331,7 +331,7 @@ class MigrationModel(models.Model):
                 old_res_model = conn.env[rec.model]
                 old_model_fields = old_res_model.fields_get()
                 model_fields = res_model.fields_get() if not self.only_fetch_data else old_model_fields
-                stored_fields = [f for f in model_fields if model_fields[f].get('store', True)]
+                stored_fields = [f for f in model_fields if model_fields[f].get('store', True) or f in COMPUTED_FIELDS_TO_READ]
                 old_fields_list = []
                 fields_mapping = {}
                 if not dependencies:
@@ -442,7 +442,7 @@ class MigrationModel(models.Model):
             self.run_import_batch(self.migration_record_ids, test=test)
         if self.threads > 0:
             self.state = 'importing'
-            n_batch = self.total_records / self.threads
+            n_batch = (self.total_records or len(self.migration_record_ids)) / self.threads
             chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_import_batch(batch)
@@ -505,7 +505,7 @@ class MigrationModel(models.Model):
                 self.migration_record_ids = [(0, 0, {'name': p[0], 'data': p[1]}) for p in products]
 
         if self.threads:
-            n_batch = self.total_records / self.threads
+            n_batch = (self.total_records or len(self.migration_record_ids)) / self.threads
             chunks = get_chunks(self.migration_record_ids, n_batch)
             for batch in chunks:
                 self.with_delay().run_auto_process(batch)
@@ -535,7 +535,7 @@ class MigrationModel(models.Model):
         account_move = self.env['account.move']
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
-
+        mr_obj = self.env['migration.record']
         errors_journal = []
         errors_account = []
         errors_tax = []
@@ -551,12 +551,12 @@ class MigrationModel(models.Model):
                 journal_old_id = old_data.get('journal_id')
 
                 if journal_old_id:
-                    journal_id = self.env['migration.record'].get_new_id('account.journal', journal_old_id[0],company_id=self.company_id.id, create=False)
+                    journal_id = mr_obj.get_new_id('account.journal', journal_old_id[0],company_id=self.company_id.id, create=False)
                     if not journal_id and journal_old_id[ 1 ] not in errors_journal:
                         errors_journal.append( journal_old_id[ 1 ] )
 
                 if payment_term_old_id:
-                    payment_term_id = self.env['migration.record'].get_new_id('account.payment.term', payment_term_old_id[0],company_id=self.company_id.id, create=False)
+                    payment_term_id = mr_obj.get_new_id('account.payment.term', payment_term_old_id[0],company_id=self.company_id.id, create=False)
                     if not payment_term_id and payment_term_old_id[ 1 ] not in errors_payment_terms:
                         errors_payment_terms.append( payment_term_old_id[ 1 ] )
 
@@ -574,10 +574,10 @@ class MigrationModel(models.Model):
                             for s in line_taxes_recs:
                                 if s.data:
                                     tax_id = json.loads( s.data )
-                                    tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
+                                    tax_id = mr_obj.get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
 
                         if account_old_id:
-                            account_id = self.env['migration.record'].get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
+                            account_id = mr_obj.get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
                                                          create=False)
 
                             if not account_id and account_old_id[1] not in errors_account:
@@ -619,8 +619,8 @@ class MigrationModel(models.Model):
 
 
                 if origin and not 'refund' in type:
-                    so_exits_origin = self.env['sale.order'].search([('name', '=', origin)])
-                    po_exits_origin = self.env['purchase.order'].search([('name', '=', origin)])
+                    so_exits_origin = self.env['sale.order'].search_count([('name', '=', origin)])
+                    po_exits_origin = self.env['purchase.order'].search_count([('name', '=', origin)])
 
                     if shipping_invoice:
                         so_exits_origin = False
@@ -632,7 +632,7 @@ class MigrationModel(models.Model):
 
                 if partner_id:
                     create_invoice_line = []
-                    invoice_line_ids = list(invoice_line_ids)
+
                     inv_line_recs = rec.search([('model', '=', 'account.invoice.line'), ('old_id', 'in', invoice_line_ids),('company_id', '=', self.company_id.id)])
                     for r in inv_line_recs:
                         if r.data:
@@ -648,10 +648,10 @@ class MigrationModel(models.Model):
                             if tax_ids:
                                 line_taxes_recs = rec.search([('model', '=', 'account.tax'), ('old_id', 'in', tax_ids),('company_id', '=', self.company_id.id)])
                                 for s in line_taxes_recs:
-                                    #tax_id = self.env['migration.record'].get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
+                                    #tax_id = mr_obj.get_new_id('account.tax', tax_id.get('id'),company_id=self.company_id.id,create=False)
                                     create_line_taxes.append( s.new_id )
 
-                            account_id = self.env['migration.record'].get_new_id('account.account', account_id[0], company_id=self.company_id.id,
+                            account_id = mr_obj.get_new_id('account.account', account_id[0], company_id=self.company_id.id,
                                                          create=False)
 
                             if product_id:
@@ -664,11 +664,11 @@ class MigrationModel(models.Model):
                                     'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
                                 }))
 
-                    """journal_id = self.env['migration.record'].get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
+                    """journal_id = mr_obj.get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
                     if not journal_id:
                         raise ValidationError('The journal is requiere to create the invoice old id %s please map it' % ( journal_id[ 0 ] ))
 
-                    payment_term_id = self.env['migration.record'].get_new_id('account.payment.term',
+                    payment_term_id = mr_obj.get_new_id('account.payment.term',
                                                                               payment_term_id[0],
                                                                               company_id=self.company_id.id,
                                                                               create=False)"""
@@ -677,7 +677,7 @@ class MigrationModel(models.Model):
                     partner_exist = partner_model.browse( partner_id )
 
                     if payment_term_id:
-                        payment_term_id = self.env['migration.record'].get_new_id('account.payment.term',
+                        payment_term_id = mr_obj.get_new_id('account.payment.term',
                                                                                   payment_term_id[0],
                                                                                   company_id=self.company_id.id,
                                                                                   create=False)
@@ -724,7 +724,6 @@ class MigrationModel(models.Model):
                 rec.write({'state': 'error', 'state_message': repr(e)})
                 _log.error(e)
 
-
     def run_process_orders(self, migration_record_ids):
         has_sp_op_migration = self.search_count([('model', '=', 'stock.pack.operation')])  # from odoo10
         sale_obj = self.env[self.model]
@@ -741,6 +740,7 @@ class MigrationModel(models.Model):
                     _log.warning('omit order because no new id')
                     continue
                 so = sale_obj.browse(rec.new_id)
+
                 if so.state != 'draft':
                     _log.warning('order %s is not in draft' % rec.name)
                     continue
@@ -799,9 +799,11 @@ class MigrationModel(models.Model):
                 sp.date = sp_date
                 sp.action_done()
                 sp.date_done = sp_date
+                # write the sp_id to old sp_rec
+                sp_rec.update({'new_id': sp.id})
                 invoices = False
                 # create and validate invoice
-                if old_data.get('invoice_status') == 'invoiced':
+                if old_data.get('invoice_ids'):
                     if self.model == 'sale.order':
                         invoices = so._create_invoices()
                     elif self.model == 'purchase.order':
@@ -824,16 +826,6 @@ class MigrationModel(models.Model):
             except Exception as e:
                 self.env.cr.rollback()
                 rec.write({'state': 'error', 'state_message': repr(e)})
-                # sql_errors = 0
-                # try:
-                #     self.env.cr.commit()
-                # except Exception as e2:
-                #     if sql_errors < 200:
-                #         sql_errors += 1
-                #         _log.exception(e2)
-                #         self.env.cr.rollback()
-                #     else:
-                #         raise e2
                 _log.error(e)
 
     def run_update_product_template_cost(self, migration_record_ids):
@@ -993,7 +985,7 @@ class MigrationModel(models.Model):
             fields_to_read = json.loads(self.old_fields_list)
             fields_to_read.append('display_name')
             old_records = old_model.search(domain, limit=limit)
-            self.total_records = len(old_records)
+            self.total_records = self.total_records + len(old_records)
             chunks = get_chunks(old_records)
             dependencies = self.dependency_ids.search([('state', '=', 'to_fetch'), ('id', '!=', self.id)])
             for dep in dependencies:
@@ -1022,5 +1014,53 @@ class MigrationModel(models.Model):
             self.env.cr.commit()
             raise e
 
+    def delete_incomplete_orders(self):
+        if self.model not in ('sale.order','purchase.order'):
+            raise ValidationError('model not allowed')
+        res_obj = self.env[self.model]
+        rec_obj = self.env['migration.record']
 
+        def cancel_order(order):
+            domain = [('new_id', 'in', order.order_line.ids), ('company_id', '=', self.company_id.id)]
 
+            if self.model == 'sale.order':
+                rec_lines = rec_obj.search(domain + [('model', '=', 'sale.order.line')])
+                order.action_cancel()
+            elif self.model == 'purchase.order':
+                rec_lines = rec_obj.search(domain + [('model', '=', 'purchase.order.line')])
+                order.button_cancel()
+            else:
+                return
+            rec_lines.unlink()
+
+        for rec in self.migration_record_ids:
+            try:
+                if not rec.new_id:
+                    rec.unlink()
+                res_id = res_obj.browse(rec.new_id)
+                sp = res_id.picking_ids
+                if not sp:
+                    cancel_order(res_id)
+                    res_id.unlink()
+                    rec.unlink()
+                    continue
+                # if none of sp has been confirmed
+                if not sp.filtered(lambda s: s.state == 'done'):
+                    sp_rec = rec_obj.search([('new_id', 'in', sp.ids), ('model', '=', 'stock.picking'), ('company_id', '=', self.company_id.id)])
+                    sp_rec.unlink()
+                    sp.unlink()
+                    cancel_order(res_id)
+                    res_id.unlink()
+                    rec.unlink()
+
+                elif rec.state == 'error':
+                    rec.update({
+                        'state': 'done',
+                        'state_message': False,
+                    })
+            except Exception as e:
+                _log.error(e)
+                rec.update({
+                    'state': 'error',
+                    'state_message': repr(e),
+                })
