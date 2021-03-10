@@ -541,7 +541,7 @@ class MigrationModel(models.Model):
         errors_account = []
         errors_tax = []
         errors_payment_terms = []
-        for rec in migration_record_ids:
+        """for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
                 continue
 
@@ -591,7 +591,7 @@ class MigrationModel(models.Model):
                 _log.error(e)
 
         if errors_account or errors_payment_terms:
-            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )
+            raise ValidationError( '\n'.join(errors_account) + '\n\n\n' + '\n'.join(errors_payment_terms)  )"""
 
         for rec in migration_record_ids:
             if rec.new_id and rec.state == 'done':
@@ -618,12 +618,13 @@ class MigrationModel(models.Model):
                 invoice_id = old_data.get('id')
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
+
                 if invoice_date:
                     invoice_date_check = invoice_date.split(" ")[ 0 ]
 
-                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-02",'%Y-%m-%d') and self.company_id.id == 58:
+                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-08",'%Y-%m-%d') and self.company_id.id == 58:
                         continue
-                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-01",'%Y-%m-%d') and self.company_id.id == 60:
+                    if datetime.datetime.strptime(invoice_date_check, '%Y-%m-%d') >= datetime.datetime.strptime("2021-03-07",'%Y-%m-%d') and self.company_id.id == 60:
                         continue
 
                 if origin and not 'refund' in type:
