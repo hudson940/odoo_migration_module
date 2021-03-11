@@ -728,6 +728,7 @@ class MigrationModel(models.Model):
 
                         self.env.cr.commit()
 
+
             except Exception as e:
                 self.env.cr.rollback()
                 rec.write({'state': 'error', 'state_message': repr(e)})
