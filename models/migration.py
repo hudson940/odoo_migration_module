@@ -534,7 +534,6 @@ class MigrationModel(models.Model):
         # account
         # tax
 
-
         account_move = self.env['account.move']
         partner_model = self.env['res.partner']
         res_user_model = self.env['res.users']
