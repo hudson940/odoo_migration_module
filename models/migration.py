@@ -699,12 +699,12 @@ class MigrationModel(models.Model):
                         rec.write({'state_message': 'partner not found %s' % ( partner_id ), 'state' : 'error'})
                         continue
 
-                    if not create_invoice_line:
-                        rec.write({'state_message': 'no invoice lines', 'state' : 'error'})
-                        continue
+                    #if not create_invoice_line:
+                    #    rec.write({'state_message': 'no invoice lines', 'state' : 'error'})
+                    #    continue
 
 
-                    if partner_exist and create_invoice_line:
+                    if partner_exist:
 
                         account_move_id = account_move.sudo().create({
                             'partner_id' : partner_id,
@@ -716,7 +716,7 @@ class MigrationModel(models.Model):
                             'team_id' : team_id[ 0 ] if team_id else False,
                             'invoice_origin' : origin,
                             'type' : type,
-                            'invoice_line_ids' : create_invoice_line,
+                            'invoice_line_ids' : create_invoice_line or False,
                             #'journal_id' : journal_id[ 0 ] if journal_id else False,
                             'company_id' : self.company_id.id,
                             'invoice_user_id' : user_id[ 0 ] if user_id else False,
