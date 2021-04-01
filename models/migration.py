@@ -676,6 +676,7 @@ class MigrationModel(models.Model):
                                 'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
                             }))
 
+
                     """journal_id = mr_obj.get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
                     if not journal_id:
                         raise ValidationError('The journal is requiere to create the invoice old id %s please map it' % ( journal_id[ 0 ] ))
