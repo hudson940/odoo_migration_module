@@ -91,9 +91,10 @@ class MigrationRecord(models.Model):
         migration_model = migration_model or self.migration_model
         in_status = migration_model.import_in_state
         company_id = company_id or self.company_id.id or migration_model.company_id.id
+        omit_fields = migration_model.omit_fields.split(',') if migration_model.omit_fields else []
         for key in data:
             field_map = fields_mapping.get(key) or {}
-            if not field_map:
+            if not field_map or key in omit_fields:
                 # Field does not exist in new odoo
                 continue
             if key in ('id', 'display_name'):
@@ -763,7 +764,7 @@ class MigrationModel(models.Model):
                     continue
                 old_state = old_data.get('state')
                 old_date = old_data.get('date_order')
-                if old_state not in ('sale', 'purchase'):
+                if old_state not in ('sale', 'purchase', 'done'):
                     _log.warning('order was in state %s' % old_state)
                     continue
                 # Validate the order
@@ -777,43 +778,45 @@ class MigrationModel(models.Model):
                     raise NotImplementedError(self.model)
                 # get old delivery data
                 old_sp_ids = old_data.get('picking_ids')
+                sp_date = old_date
                 if not old_sp_ids:
                     rec.write({'state': 'error', 'state_message': 'order without picking_ids'})
                     continue
-                sp_rec = rec.search([('model', '=', 'stock.picking'), ('old_id', 'in', old_sp_ids)])
-                sp_data = [json.loads(r.data) for r in sp_rec if r.data]
-                if not sp_rec:
-                    # get from old server
-                    sp_data = conn.env['stock.picking'].search_read([('id', 'in', old_sp_ids)], picking_fields)
-                if not sp_data:
-                    rec.write({'state': 'error', 'state_message': 'no stock picking data found'})
-                    continue
-                validated_pickings = [p for p in sp_data if p.get('state') == 'done']
-                if not validated_pickings:
-                    rec.write({'state': 'pending', 'state_message': 'no validated picking found'})
-                    continue
-                sp_lines = []
-                if has_sp_op_migration:
-                    # for V10
-                    # todo add support for stock.move V13
-                    for sp_val in validated_pickings:
-                        sp_lines += self.get_sp_lines_from_op_lines(sp_val, conn=conn, mr_obj=mr_obj)
+                if old_sp_ids:
+                    sp_rec = rec.search([('model', '=', 'stock.picking'), ('old_id', 'in', old_sp_ids)])
+                    sp_data = [json.loads(r.data) for r in sp_rec if r.data]
+                    if not sp_rec:
+                        # get from old server
+                        sp_data = conn.env['stock.picking'].search_read([('id', 'in', old_sp_ids)], picking_fields)
+                    if not sp_data:
+                        rec.write({'state': 'error', 'state_message': 'no stock picking data found'})
+                        continue
+                    validated_pickings = [p for p in sp_data if p.get('state') == 'done']
+                    if not validated_pickings:
+                        rec.write({'state': 'pending', 'state_message': 'no validated picking found'})
+                        continue
+                    sp_lines = []
+                    if has_sp_op_migration:
+                        # for V10
+                        # todo add support for stock.move V13
+                        for sp_val in validated_pickings:
+                            sp_lines += self.get_sp_lines_from_op_lines(sp_val, conn=conn, mr_obj=mr_obj)
 
-                if not sp_lines:
-                    rec.write({'state_message': 'no picking lines found'})
-                    continue
-                sp = so.picking_ids
-                # set unique operation lines
-                unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
-                # set moves
-                sp.move_line_ids_without_package = unique_lines
-                # validate delivery
-                sp_date = sp_data[0].get('date_done')
-                sp.date = sp_date
-                sp.action_done()
-                sp.date_done = sp_date
-                # write the sp_id to old sp_rec
-                sp_rec.update({'new_id': sp.id})
+                    if not sp_lines:
+                        rec.write({'state_message': 'no picking lines found'})
+                        continue
+                    sp = so.picking_ids
+                    # set unique operation lines
+                    unique_lines = self.get_sp_unique_move_lines(sp_lines, mr_obj, company_id, sp)
+                    # set moves
+                    sp.move_line_ids_without_package = unique_lines
+                    # validate delivery
+                    sp_date = sp_data[0].get('date_done')
+                    sp.date = sp_date
+                    sp.action_done()
+                    sp.date_done = sp_date
+                    # write the sp_id to old sp_rec
+                    sp_rec.update({'new_id': sp.id, 'state': 'done'})
                 invoices = False
                 # create and validate invoice
                 if old_data.get('invoice_ids'):
