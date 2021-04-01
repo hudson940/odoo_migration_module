@@ -619,7 +619,6 @@ class MigrationModel(models.Model):
                 invoice_id = old_data.get('id')
                 shipping_invoice = old_data.get('shipping_invoice', False)
 
-
                 if invoice_date:
                     invoice_date_check = invoice_date.split(" ")[ 0 ]
 
