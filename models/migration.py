@@ -704,6 +704,7 @@ class MigrationModel(models.Model):
                     #    continue
 
 
+
                     if partner_exist:
 
                         account_move_id = account_move.sudo().create({
