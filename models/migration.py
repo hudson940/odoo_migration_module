@@ -722,7 +722,7 @@ class MigrationModel(models.Model):
                             'invoice_user_id' : user_id[ 0 ] if user_id else False,
                             'invoice_date_due' : invoice_date_due
                         })
-                        if state == 'open' or state == 'paid':
+                        if state == 'open' or state == 'paid' and create_invoice_line:
                             account_move_id.post()
 
                         if state == 'cancel':
