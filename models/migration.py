@@ -666,15 +666,14 @@ class MigrationModel(models.Model):
                             account_id = mr_obj.get_new_id('account.account', account_id[0], company_id=self.company_id.id,
                                                          create=False)
 
-                            if product_id:
-                                create_invoice_line.append((0, 0, {
-                                    'name': name,
-                                    'product_id': product_id[ 0 ] if product_id else False,
-                                    'price_unit': float(price_unit),
-                                    'quantity': quantity,
-                                    'account_id': account_id,
-                                    'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
-                                }))
+                            create_invoice_line.append((0, 0, {
+                                'name': name,
+                                'product_id': product_id[ 0 ] if product_id else False,
+                                'price_unit': float(price_unit),
+                                'quantity': quantity,
+                                'account_id': account_id,
+                                'tax_ids': [(6, False, create_line_taxes )] if create_line_taxes else False
+                            }))
 
                     """journal_id = mr_obj.get_new_id('account.journal', journal_id[ 0 ], company_id=self.company_id.id, create=False)
                     if not journal_id:
