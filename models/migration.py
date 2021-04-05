@@ -583,6 +583,7 @@ class MigrationModel(models.Model):
                             account_id = mr_obj.get_new_id('account.account', account_old_id[0], company_id=self.company_id.id,
                                                          create=False)
 
+
                             if not account_id and account_old_id[1] not in errors_account:
                                 errors_account.append(account_old_id[1])
 
