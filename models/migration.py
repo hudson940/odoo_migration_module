@@ -1,5 +1,5 @@
 from odoo import models, fields, api
-from odoo.addons.queue_job.job import job
+#from odoo.addons.queue_job.job import job
 import odoorpc
 import logging
 import json
@@ -7,18 +7,22 @@ from odoo.exceptions import ValidationError
 from odoo.tests import Form
 import datetime
 _log = logging.getLogger(__name__)
+import requests
+import base64
 
 def get_chunks(iterable, n=1000):
     for i in range(0, len(iterable), int(n)):
         yield iterable[i:i + int(n)]
 
+SESSION = requests.session()
 # creating an user raises: 'You cannot create a new user from here.
 #  To create new user please go to configuration panel.'
 
 BASE_MODEL_PREFIX = ['ir.', 'mail.', 'base.', 'bus.', 'report.', 'account.', 'res.users', 'stock.location', 'res.',
                      'product.pricelist', 'product.product', 'stock.picking.type','uom.','crm.team', 'stock.warehouse', 'stock.picking']
 # todo: add bool field on migration.model like use_same_id
-MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
+#MODELS_WITH_EQUAL_IDS = ['res.partner', 'product.product', 'product.template', 'product.category', 'seller.instance', 'uom.uom', 'res.users']
+MODELS_WITH_EQUAL_IDS = []
 WITH_AUTO_PROCESS = ['sale.order', 'purchase.order', 'update_product_template_costs', 'account.invoice', 'stock.picking']
 COMPUTED_FIELDS_TO_READ = ['invoice_ids']
 
@@ -52,9 +56,10 @@ class MigrationRecord(models.Model):
         name = self.name
         res_model = self.env[model]
         has_name = hasattr(res_model, 'name')
-        has_complete_name = hasattr(res_model, 'complete_name')
+        alternative_name = 'complete_name'
+        has_complete_name = hasattr(res_model, alternative_name)
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
-            domain = [('complete_name' if has_complete_name else 'name', '=', name)]
+            domain = [(alternative_name if has_complete_name else 'name', '=', name)]
             has_company = hasattr(res_model, 'company_id')
             if has_company and company_id:
                 domain.append(('company_id', '=', company_id))
@@ -82,16 +87,21 @@ class MigrationRecord(models.Model):
             return rec.get_or_create_new_id(data, field_type=rec.type, relation=model, test=test, company_id=company_id)
         return 0
 
-    def prepare_vals(self, data={}, fields_mapping={}, model='', test=False, company_id=0, migration_model=None):
+    def prepare_vals(self, data=None, fields_mapping=None, model='', test=False, company_id=0, migration_model=None):
         if not data and self.data:
             data = json.loads(self.data)
+        elif data is None:
+            data = {}
         if not fields_mapping and model:
             fields_mapping = self.env[model].fields_get()
+        elif fields_mapping is None:
+            fields_mapping = {}
         vals = {}
         migration_model = migration_model or self.migration_model
         in_status = migration_model.import_in_state
         company_id = company_id or self.company_id.id or migration_model.company_id.id
         omit_fields = migration_model.omit_fields.split(',') if migration_model.omit_fields else []
+
         for key in data:
             field_map = fields_mapping.get(key) or {}
             if not field_map or key in omit_fields:
@@ -104,6 +114,9 @@ class MigrationRecord(models.Model):
                 continue
             if in_status and key == 'state':
                 vals[key] = in_status
+                continue
+            if key == 'res_id' and model:
+                vals[key] = self.env['migration.record'].search([('model','=', data.get('res_model')),('old_id','=',int(data[key]))], limit=1).new_id
                 continue
             value = data[key]
             if isinstance(value, (list, tuple)):
@@ -138,6 +151,17 @@ class MigrationRecord(models.Model):
             else:
                 # simple value, int, str
                 vals[key] = value
+        
+        if model == 'ir.attachment':
+            try:
+                access_token = data.get('access_token') or ''
+                att_id = data.get('id')
+                if att_id:
+                    res = SESSION.get(f'https://{migration_model.credentials_id.url}/web/content/{att_id}?download=true&access_token={access_token}')
+                    if res.status_code == 200:
+                        vals['datas'] = base64.b64encode(res.content)
+            except Exception as e:
+                _log.error(e)
         return vals
 
     def get_or_create_new_id(self, value=None, field_map=False,  field_type='', relation='', flag_try_old_id=False, test=False, company_id=0, force_create=False):
@@ -148,6 +172,7 @@ class MigrationRecord(models.Model):
         :raises: Exeption if fail creating record
         :return int
         """
+        
         company_id = company_id or self.migration_model.company_id.id
         migration_model = False
         if self.new_id:
@@ -162,10 +187,11 @@ class MigrationRecord(models.Model):
                 return 0
         if not relation:
             relation = self.model
+        alternative_name = 'display_name' if relation == 'product.product' else 'complete_name'
         flag_try_old_id = flag_try_old_id or relation in MODELS_WITH_EQUAL_IDS
         res_model = self.env[relation]
         has_name = hasattr(res_model, 'name')
-        has_complete_name = hasattr(res_model, 'complete_name')
+        has_complete_name = hasattr(res_model, alternative_name)
         new_rec = 0
         old_id = self.old_id
         raw_vals = False
@@ -184,8 +210,8 @@ class MigrationRecord(models.Model):
             id = self.get_new_id(relation, old_id, create=bool(field_map))
             if id:
                 return id
-        if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
-            domain = [('complete_name' if has_complete_name else 'name', '=', name)]
+        if (not self.migration_model or self.migration_model.match_records_by_name) and (has_name or has_complete_name) and name:
+            domain = [(alternative_name if has_complete_name else 'name', '=', name)]
             has_company = hasattr(res_model, 'company_id')
             rec_no_company = False  # some records are shared between companies
             if has_company and company_id:
@@ -205,6 +231,8 @@ class MigrationRecord(models.Model):
             if raw_vals:
                 vals = self.prepare_vals(raw_vals, model=relation, company_id=company_id)
                 try:
+                    # if vals.get('notified_partner_ids'):
+                    #     del vals['notified_partner_ids']
                     new_rec = res_model.create(vals).id
                 except Exception as e:
                     if test:
@@ -455,7 +483,7 @@ class MigrationModel(models.Model):
                 self.run_import_batch(batch)
             self.state = 'done'
 
-    @job
+    #@job
     def run_import_batch(self, migration_record_ids, test=False):
         sql_errors = 0
         records = migration_record_ids.filtered(lambda r: not r.new_id)
@@ -515,7 +543,7 @@ class MigrationModel(models.Model):
             self.run_auto_process(self.migration_record_ids)
 
 
-    @job
+    #@job
     def run_auto_process(self, migration_record_ids):
         self.env.user.company_ids = self.env.user.company_id.search([])
         self.env.user.company_id = self.company_id
@@ -968,7 +996,7 @@ class MigrationModel(models.Model):
                 #         raise e2
                 _log.error(e)
 
-    @job
+    #@job
     def prepare_records_from_old_server(self, run_import=False, test=False):
         try:
             if self.state != 'to_fetch':
