@@ -56,7 +56,7 @@ class MigrationRecord(models.Model):
         name = self.name
         res_model = self.env[model]
         has_name = hasattr(res_model, 'name')
-        alternative_name = 'complete_name'
+        alternative_name = self.migration_model.alternative_name or 'complete_name'
         has_complete_name = hasattr(res_model, alternative_name)
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
             domain = [(alternative_name if has_complete_name else 'name', '=', name)]
@@ -340,6 +340,7 @@ class MigrationModel(models.Model):
     migrated_records = fields.Integer(compute='_compute_progress')
     migration_progress = fields.Integer(compute='_compute_progress')
     has_auto_process = fields.Boolean(compute='_compute_progress')
+    alternative_name = fields.Char(default="complete_name",help="other name to map records must be a valid field on the model")
 
     # temporal fields
     account_id = fields.Many2one('account.account')

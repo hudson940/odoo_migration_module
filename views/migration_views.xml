@@ -53,6 +53,7 @@
                         <field name="record_states" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="import_in_state" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="match_records_by_name" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+                        <field name="alternative_name"/>
                         <field name="has_auto_process"/>
 
 
