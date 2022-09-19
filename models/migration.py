@@ -47,7 +47,8 @@ class MigrationRecord(models.Model):
         company_id = self.company_id.id
         if not model:
             raise ValidationError('Model is required')
-        data, name_data = False
+        data = False
+        name_data = False
         if self.data:
             data = json.loads(self.data)
         new_id = self.get_new_id(model, self.old_id, company_id=company_id, create=False)
