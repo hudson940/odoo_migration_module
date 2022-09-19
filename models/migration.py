@@ -40,7 +40,6 @@ class MigrationRecord(models.Model):
     type = fields.Char()
     relation = fields.Char()
 
-
     def map_record(self):
         if self.new_id:
             return self.new_id
@@ -48,25 +47,27 @@ class MigrationRecord(models.Model):
         company_id = self.company_id.id
         if not model:
             raise ValidationError('Model is required')
-        #if self.data:
-        #    data = json.loads(self.data)
+        data, name_data = False
+        if self.data:
+            data = json.loads(self.data)
         new_id = self.get_new_id(model, self.old_id, company_id=company_id, create=False)
         if new_id:
             return new_id
+        name_data = data.get(self.migration_model.alternative_name or 'name')
         name = self.name
         res_model = self.env[model]
         has_name = hasattr(res_model, 'name')
         alternative_name = self.migration_model.alternative_name or 'complete_name'
         has_complete_name = hasattr(res_model, alternative_name)
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
-            domain = [(alternative_name if has_complete_name else 'name', '=', name)]
+            domain = [(alternative_name if has_complete_name else 'name', '=', name_data if name_data else name)]
             has_company = hasattr(res_model, 'company_id')
             if has_company and company_id:
                 domain.append(('company_id', '=', company_id))
 
             new_rec = res_model.search(domain, limit=1).id
             if new_rec:
-                self.write({'new_id': new_rec, 'model': model, 'state': 'done',})
+                self.write({'new_id': new_rec, 'model': model, 'state': 'done', })
                 return new_rec
 
     def get_new_id(self, model, old_id, test=False, company_id=0, create=True):
