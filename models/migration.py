@@ -28,6 +28,8 @@ COMPUTED_FIELDS_TO_READ = ['invoice_ids']
 
 class MigrationRecord(models.Model):
     _name = 'migration.record'
+    _description = "Module for Record model of migrations"
+
     name = fields.Char()
     model = fields.Char(index=True)
     old_id = fields.Integer(index=True)
@@ -62,10 +64,11 @@ class MigrationRecord(models.Model):
         has_complete_name = hasattr(res_model, alternative_name)
         if self.migration_model.match_records_by_name and (has_name or has_complete_name) and name:
             domain = [(alternative_name if has_complete_name else 'name', '=', name_data if name_data else name)]
+            if self.migration_model.betwen_name_and_alternative:
+                domain = ["|", ("name", "=", name), (alternative_name, '=', name_data)]
             has_company = hasattr(res_model, 'company_id')
             if has_company and company_id:
                 domain.append(('company_id', '=', company_id))
-
             new_rec = res_model.search(domain, limit=1).id
             if new_rec:
                 self.write({'new_id': new_rec, 'model': model, 'state': 'done', })
@@ -153,7 +156,7 @@ class MigrationRecord(models.Model):
             else:
                 # simple value, int, str
                 vals[key] = value
-        
+
         if model == 'ir.attachment':
             try:
                 access_token = data.get('access_token') or ''
@@ -174,7 +177,7 @@ class MigrationRecord(models.Model):
         :raises: Exeption if fail creating record
         :return int
         """
-        
+
         company_id = company_id or self.migration_model.company_id.id
         migration_model = False
         if self.new_id:
@@ -288,6 +291,8 @@ class MigrationRecord(models.Model):
 
 class MigrationCredentials(models.Model):
     _name = 'migration.credentials'
+    _description = "Model for credentials migrations"
+
     database = fields.Char()
     url = fields.Char()
     port = fields.Char()
@@ -299,6 +304,8 @@ class MigrationCredentials(models.Model):
 class MigrationModel(models.Model):
     _name = 'migration.model'
     _order = 'sequence'
+    _description = "Model for migration model version"
+
     name = fields.Char()
     state = fields.Selection([
         ('draft','Draft'),
@@ -343,9 +350,14 @@ class MigrationModel(models.Model):
     migration_progress = fields.Integer(compute='_compute_progress')
     has_auto_process = fields.Boolean(compute='_compute_progress')
     alternative_name = fields.Char(default="complete_name",help="other name to map records must be a valid field on the model")
+    betwen_name_and_alternative = fields.Boolean(default=False,
+                                                 help="Check to change the domain from alternative name and name to or")
 
     # temporal fields
     account_id = fields.Many2one('account.account')
+
+    def _valid_field_parameter(self, field, name):
+        return name in ['stored', 'ondelete'] or super()._valid_field_parameter(field, name)
 
     def compute_fields_mapping(self, dependencies=[]):
         for rec in self:
@@ -467,7 +479,7 @@ class MigrationModel(models.Model):
                 self.env.cr.rollback()
                 self.state = 'error'
                 self.status_message = repr(e)
-    
+
     def run_import_process(self, test=False):
         if self.state != 'ready' or self.only_fetch_data:
             return  # raise ValidationError('Fetch data is no ready')

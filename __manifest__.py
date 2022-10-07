@@ -9,7 +9,7 @@
     "version": "1.0.0",
     "author": "Anderson Martinez",
     "maintainer": "Anderson Martinez",
-    #'depends': ['queue_job'],
+    'depends': ['account'],
     'external_dependencies': {'python': ['odoorpc']},
     'data': [
         'data/migration.credentials.csv',
