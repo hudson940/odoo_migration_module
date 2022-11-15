@@ -238,7 +238,7 @@ class MigrationRecord(models.Model):
                 try:
                     # if vals.get('notified_partner_ids'):
                     #     del vals['notified_partner_ids']
-                    new_rec = res_model.create(vals).id
+                    new_rec = res_model.with_context(no_vat_validation=True).create(vals).id
                 except Exception as e:
                     if test:
                         self.env.cr.rollback()
