@@ -34,6 +34,7 @@
                         <button name="button_start" type="object" string="Start Migration" class="btn-primary" states="to_fetch"/>
                         <button name="run_import_process" type="object" string="Run Import" class="btn-primary" states="ready"/>
                         <button name="set_draft" type="object" string="Set draft" class="btn-primary" />
+                        <button name="set_to_fetch" type="object" string="Set to Fetch" class="btn-primary" />
                         <button name="set_ready" type="object" string="Set Ready" class="btn-primary" states="error,done,to_fetch"/>
                         <button name="auto_process" type="object" string="Run Auto Process" states="draft,done,importing" attrs="{'invisible':[('has_auto_process','=', False)]}"/>
                         <field name="state" widget="statusbar"/>
@@ -61,8 +62,8 @@
                         <field name="threads" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="extra_domain" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="total_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>
-                        <field name="fetch_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>    
-                        
+                        <field name="fetch_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>
+
                         <field name="fetch_progress" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="migrated_records" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="migration_progress" attrs="{'readonly': [('state','!=', 'draft')]}"/>

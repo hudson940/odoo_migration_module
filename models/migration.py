@@ -453,6 +453,10 @@ class MigrationModel(models.Model):
         for rec in self:
             rec.state = 'draft'
 
+    def set_to_fetch(self):
+        for rec in self:
+            rec.state = 'to_fetch'
+
     def set_ready(self):
         for rec in self:
             rec.state = 'ready'
@@ -814,7 +818,7 @@ class MigrationModel(models.Model):
                     continue
                 # Validate the order
                 if self.model == 'sale.order':
-                    so.action_confirm()
+                    so.with_context(force_validate_wihout_delivery_method=True).action_confirm()
                     so.date_order = old_date
                 elif self.model == 'purchase.order':
                     so.button_confirm()
@@ -1053,7 +1057,9 @@ class MigrationModel(models.Model):
                 if dep.state == 'to_fetch':
                     dep.prepare_records_from_old_server(run_import=False, test=test)
             for batch in chunks:
-                data = old_model.search_read([('id', 'in', batch)], fields_to_read)
+                batch_domain = [('id', 'in', batch)]
+                batch_domain += [dm for dm in domain if dm[0]=='active']
+                data = old_model.search_read(batch_domain, fields_to_read)
                 self.migration_record_ids = [[0, 0, {
                     'old_id': d.get('id'),
                     'data': json.dumps(d),
