@@ -55,6 +55,7 @@ class MigrationRecord(models.Model):
             data = json.loads(self.data)
         new_id = self.get_new_id(model, self.old_id, company_id=company_id, create=False)
         if new_id:
+            self.write({'new_id': new_id, 'model': model, 'state': 'done', })
             return new_id
         name_data = data.get(self.migration_model.alternative_name or 'name')
         name = self.name
@@ -67,9 +68,12 @@ class MigrationRecord(models.Model):
             if self.migration_model.betwen_name_and_alternative:
                 domain = ["|", ("name", "=", name), (alternative_name, '=', name_data)]
             has_company = hasattr(res_model, 'company_id')
+            if self.migration_model.archived_record and hasattr(res_model, 'active'):
+                domain.append(('active', 'in', [True, False]))
             if has_company and company_id:
                 domain.append(('company_id', '=', company_id))
             new_rec = res_model.search(domain, limit=1).id
+
             if new_rec:
                 self.write({'new_id': new_rec, 'model': model, 'state': 'done', })
                 return new_rec
@@ -169,6 +173,7 @@ class MigrationRecord(models.Model):
                 _log.error(e)
         return vals
 
+
     def get_or_create_new_id(self, value=None, field_map=False,  field_type='', relation='', flag_try_old_id=False, test=False, company_id=0, force_create=False):
         """
         :param flag_try_old_id:
@@ -238,7 +243,7 @@ class MigrationRecord(models.Model):
                 try:
                     # if vals.get('notified_partner_ids'):
                     #     del vals['notified_partner_ids']
-                    new_rec = res_model.with_context(no_vat_validation=True).create(vals).id
+                    new_rec = res_model.with_context(no_vat_validation=True,force_create=True).create(vals).id
                 except Exception as e:
                     if test:
                         self.env.cr.rollback()
@@ -261,7 +266,7 @@ class MigrationRecord(models.Model):
                         data = old_model.search_read([('id', '=', old_id)], fields_to_read)
                         if data:
                             vals = self.prepare_vals(data[0], model=relation, company_id=company_id, migration_model=migration_model)
-                            new_rec = res_model.create(vals).id
+                            new_rec = res_model.with_context(force_create=True).create(vals).id
                     elif name:
                         new_rec = res_model.create({'name': name}).id
                 except Exception as e:
@@ -352,9 +357,30 @@ class MigrationModel(models.Model):
     alternative_name = fields.Char(default="complete_name",help="other name to map records must be a valid field on the model")
     betwen_name_and_alternative = fields.Boolean(default=False,
                                                  help="Check to change the domain from alternative name and name to or")
+    archived_record = fields.Boolean(
+        string="Register Archived", help="consider archived records",
+        default=False
+    )
 
     # temporal fields
     account_id = fields.Many2one('account.account')
+
+
+    def update_record(self):
+        conn = self.conn()
+        new_model = conn.env[self.model]
+        domain = json.loads(self.extra_domain)
+        fields_to_read = json.loads(self.old_fields_list)
+        registers = new_model.search(domain)
+        for rec in registers:
+            datos = new_model.browse(rec)
+            data = datos.default_code
+            if data:
+                code = str(data)
+                code = code.replace('[', '')
+                code = code.replace(']', '')
+                code = code.strip()
+                datos.default_code = code
 
     def _valid_field_parameter(self, field, name):
         return name in ['stored', 'ondelete'] or super()._valid_field_parameter(field, name)

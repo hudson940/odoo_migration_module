@@ -36,6 +36,7 @@
                         <button name="set_draft" type="object" string="Set draft" class="btn-primary" />
                         <button name="set_to_fetch" type="object" string="Set to Fetch" class="btn-primary" />
                         <button name="set_ready" type="object" string="Set Ready" class="btn-primary" states="error,done,to_fetch"/>
+                        <button name="update_record" type="object" string="Update Record" class="btn-primary"/>
                         <button name="auto_process" type="object" string="Run Auto Process" states="draft,done,importing" attrs="{'invisible':[('has_auto_process','=', False)]}"/>
                         <field name="state" widget="statusbar"/>
                     </header>
@@ -56,6 +57,7 @@
                         <field name="match_records_by_name" attrs="{'readonly': [('state','!=', 'draft')]}"/>
                         <field name="alternative_name"/>
                         <field name="betwen_name_and_alternative"/>
+                        <field name="archived_record"/>
                         <field name="has_auto_process"/>
 
 
@@ -79,7 +81,7 @@
                         <field name="dependency_ids" attrs="{'readonly': [('state','!=', 'draft')]}"/>
 
                         <field name="migration_record_ids">
-                            <tree editable="bottom" decoration-danger="state == 'error'"
+                            <tree decoration-danger="state == 'error'"
                                   decoration-success="state == 'done'">
                                 <field name="name"/>
                                 <field name="state"/>
